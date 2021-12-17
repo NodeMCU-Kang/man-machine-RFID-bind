@@ -1,0 +1,59 @@
+<!DOCTYPE HTML>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title></title>
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width">
+
+        <!--<link rel="stylesheet" href="css/styles.css">-->
+    </head>
+    <body>
+        <!-- Add application content here -->
+
+        <!-- Add JavaScript Libraries here -->
+        <script src="//ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js"></script>
+        <script src="jquery.qrcode.js"></script>
+        <script src="qrcode.js"></script>
+        
+        使用 RFID 讀卡機讀取卡片 ID, 如果出現亂碼，請切換輸入法<br>
+        <input id="rfid_input" type="text" style="width:310px" placeholder="假如有嗶聲，但沒更新 RFID ID 和 QR，請點擊此處"><br><br>
+
+        
+        <label>RFID ID: </label><label id="rfid_id"></label><br><br>
+        
+        <div id="qr_div">
+          <div id="qrcode"></div>
+        </div>
+        
+        <script>
+          var limit = 10; //your input limit
+          //$(document).on('ready',function(){
+              $("#rfid_input").focus(); 
+              var oldValue = $( "input[type='text']" ).val();
+              $( "input[type='text']" ).on('keydown',function(e) {
+                  oldValue = $( this ).val();
+              })
+              $( "input[type='text']" ).on('input propertychange',function(e) {
+                  newValue = $(this).val();
+                  if(newValue.length >= limit){
+                      //$(this).val(oldValue);
+                      $("#rfid_id").text(newValue);
+                      console.log("RFID ID:"+newValue); 
+                      $("#qrcode").remove();
+                      $("#qr_div").append("<div id='qrcode'></div>");   
+                    
+                      setTimeout( function() {
+                        $("#rfid_input").val("");   
+                        //$('#qrcode').qrcode(newValue);                          
+                        $('#qrcode').qrcode({width: 310,height: 310,text: newValue});     
+                        $("#rfid_input").focus(); 
+                      }, 500);
+                  }
+              });
+          //});
+          
+        </script>
+                
+    </body>
+</html>
