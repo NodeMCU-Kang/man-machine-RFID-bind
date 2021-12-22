@@ -46,7 +46,8 @@
                       setTimeout( function() {
                         $("#rfid_input").val("");   
                         //$('#qrcode').qrcode(newValue);                          
-                        $('#qrcode').qrcode({width: 410,height: 410,text: newValue});     
+                        // for desktop $('#qrcode').qrcode({width: 410,height: 410,text: newValue}); 
+                        $('#qrcode').qrcode({width: 300,height: 300,text: newValue}); // for 3.5" portrait 320x480 LCD                       
                         $("#rfid_input").focus(); 
                       }, 500);
                   }
