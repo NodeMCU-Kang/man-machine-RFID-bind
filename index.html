@@ -16,15 +16,21 @@
         <script src="jquery.qrcode.js"></script>
         <script src="qrcode.js"></script>
         
-        使用 RFID 讀卡機讀取卡片 ID, 如果出現亂碼，請切換輸入法<br>
-        <input id="rfid_input" type="text" style="width:410px" placeholder="假如有嗶聲，但沒更新 RFID ID 和 QR，請點擊此處"><br><br>
+        <div id="qr_div" style="float: left">
+          <div id="qrcode"></div>
+        </div>
+        <div style="float: right">        
+          使用 RFID 讀卡機讀取卡片 ID, 如果出現亂碼，請切換輸入法<br>
+          <input id="rfid_input" type="text" style="width:410px" placeholder="假如有嗶聲，但沒更新 RFID ID 和 QR，請點擊此處"><br><br>
 
+          <label>RFID ID: </label><label id="rfid_id"></label>
+        </div>
         
-        <label>RFID ID: </label><label id="rfid_id"></label><br><br>
-        
+<!--
         <div id="qr_div">
           <div id="qrcode"></div>
         </div>
+-->
         
         <script>
           var limit = 10; //your input limit
@@ -47,7 +53,7 @@
                         $("#rfid_input").val("");   
                         //$('#qrcode').qrcode(newValue);                          
                         // for desktop $('#qrcode').qrcode({width: 410,height: 410,text: newValue}); 
-                        $('#qrcode').qrcode({width: 300,height: 300,text: newValue}); // for 3.5" portrait 320x480 LCD                       
+                        $('#qrcode').qrcode({width: 320,height: 320,text: newValue}); // for 3.5" portrait 320x480 LCD                       
                         $("#rfid_input").focus(); 
                       }, 500);
                   }
