@@ -1,5 +1,6 @@
 //#define use_u8g2
 
+#define redLED 3 //RX
 #define greenLED D1
 #define blueLED D2
 
@@ -30,11 +31,12 @@ MFRC522 mfrc522(SS_PIN, RST_PIN);  // Create MFRC522 instance
 ESP8266WiFiMulti WiFiMulti;
 
 void setup() {
-
-  pinMode(SS_PIN,OUTPUT);
-  digitalWrite(SS_PIN, HIGH); 
-    
+   
   // LED test
+  //********************* CHANGE PIN FUNCTION **********************
+  pinMode(redLED, FUNCTION_3); //GPIO 3 swap the pin from RX to a GPIO.
+  //****************************************************************
+  pinMode(redLED, OUTPUT);    
   pinMode(greenLED,OUTPUT);
   pinMode(blueLED,OUTPUT);
   digitalWrite(greenLED, HIGH); 
@@ -43,7 +45,11 @@ void setup() {
   digitalWrite(blueLED, HIGH); 
   delay(1000);            // waits for a second
   digitalWrite(blueLED, LOW); 
-      
+  digitalWrite(redLED, HIGH);   
+  delay(1000);
+  digitalWrite(redLED, LOW);
+  delay(1000);  
+        
 #if defined(use_u8g2)
   u8g2.begin();
   u8g2.enableUTF8Print(); 
@@ -63,6 +69,10 @@ void setup() {
   u8g2.sendBuffer();
 #endif    
 
+  //********************* CHANGE PIN FUNCTION **********************
+  //pinMode(redLED, FUNCTION_0); //GPIO 3 swap the pin to a RX.
+  //****************************************************************
+  
   Serial.begin(115200);
   // Serial.setDebugOutput(true);
 
@@ -92,8 +102,19 @@ void setup() {
 
 long times=0;
 void loop() {
-  // *****
-  // re-init for cheap RFID cards
+
+//  //********************* CHANGE PIN FUNCTION **********************
+//  pinMode(redLED, FUNCTION_3); //GPIO 3 swap the pin from RX to a GPIO.
+//  //****************************************************************
+//  pinMode(redLED, OUTPUT); 
+//  digitalWrite(redLED, HIGH);   
+//  delay(1000);
+//  digitalWrite(redLED, LOW);
+//  delay(1000);  
+//  
+//  Serial.begin(115200);  
+
+  // ***** re-init for cheap RFID cards
   mfrc522.PCD_Init();
   delay(4);  
   // *****
@@ -123,6 +144,12 @@ void loop() {
     Serial.println("******** times *********");
     Serial.println(++times);
     Serial.println("******** times *********");
+
+    // short beep
+    digitalWrite(SS_PIN, HIGH);   
+    delay(100);
+    digitalWrite(SS_PIN, LOW);
+
             
     // wait for WiFi connection
     if ((WiFiMulti.run() == WL_CONNECTED)) {
