@@ -1,8 +1,8 @@
 //#define use_u8g2
 
-#define blueLED 3 //RX
+#define redLED 3 //RX
 #define greenLED D1
-#define redLED D2 // same as beep
+#define blueLED D2
 
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
@@ -43,10 +43,11 @@ void setup() {
   delay(1000);            // waits for a second
   digitalWrite(greenLED, LOW);  
   digitalWrite(blueLED, HIGH); 
-  digitalWrite(redLED, HIGH);  
   delay(1000);            // waits for a second
   digitalWrite(blueLED, LOW); 
-  digitalWrite(redLED, LOW);  
+  digitalWrite(redLED, HIGH);   
+  delay(1000);
+  digitalWrite(redLED, LOW);
   delay(1000);  
         
 #if defined(use_u8g2)
