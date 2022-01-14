@@ -1,8 +1,11 @@
+//#define test_LED
 //#define use_u8g2
+//#define test_WiFi
 
-#define blueLED 3 //RX
+#define blueLED   3 //RX
 #define greenLED D1
-#define redLED D2 // same as beep
+#define redLED   D2 // same as beep
+#define beepPin  D2
 
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
@@ -31,7 +34,24 @@ MFRC522 mfrc522(SS_PIN, RST_PIN);  // Create MFRC522 instance
 ESP8266WiFiMulti WiFiMulti;
 
 void setup() {
-   
+
+  pinMode(beepPin, OUTPUT); 
+
+  // beep--- beep beep
+  digitalWrite(beepPin, HIGH);   
+  delay(300);
+  digitalWrite(beepPin, LOW);
+  delay(100);
+  digitalWrite(beepPin, HIGH);   
+  delay(100);
+  digitalWrite(beepPin, LOW);
+  delay(100);
+  digitalWrite(beepPin, HIGH);   
+  delay(100);
+  digitalWrite(beepPin, LOW);
+ 
+  
+#if defined(test_LED)   
   // LED test
   //********************* CHANGE PIN FUNCTION **********************
   pinMode(redLED, FUNCTION_3); //GPIO 3 swap the pin from RX to a GPIO.
@@ -42,12 +62,13 @@ void setup() {
   digitalWrite(greenLED, HIGH); 
   delay(1000);            // waits for a second
   digitalWrite(greenLED, LOW);  
-  digitalWrite(blueLED, HIGH); 
+  //digitalWrite(blueLED, HIGH); 
   digitalWrite(redLED, HIGH);  
   delay(1000);            // waits for a second
   digitalWrite(blueLED, LOW); 
   digitalWrite(redLED, LOW);  
   delay(1000);  
+#endif  
         
 #if defined(use_u8g2)
   u8g2.begin();
@@ -78,7 +99,7 @@ void setup() {
   Serial.println();
   Serial.println();
 
-  Serial.println("Source: MAQ D:\WebApp Projects\ArduinoDevices\P02-人機綁定\man-machine-RFID-bind\D1_Mini_RFID_Reader_Test");  
+  Serial.println("Source: MAQ D:\\WebApp Projects\\ArduinoDevices\\P02-人機綁定\\man-machine-RFID-bind\\D1_Mini_RFID_Reader_Test");  
   Serial.println();
 
   SPI.begin();
@@ -87,6 +108,7 @@ void setup() {
   mfrc522.PCD_DumpVersionToSerial();  // Show details of PCD - MFRC522 Card Reader details
   Serial.println(F("Scan PICC to see UID, SAK, type, and data blocks..."));     
 
+#if defined(test_WiFi) 
   for (uint8_t t = 4; t > 0; t--) {
     Serial.printf("[SETUP] WAIT %d...\n", t);
     Serial.flush();
@@ -96,6 +118,7 @@ void setup() {
   WiFi.mode(WIFI_STA);
   WiFiMulti.addAP("TCRD4G", "cOUWUnWPU1");
   WiFiMulti.addAP("abc", "12345678");  
+#endif  
 
 }
 
@@ -137,19 +160,30 @@ void loop() {
       return;
     }
 
-    // Dump debug info about the card; PICC_HaltA() is automatically called
-    mfrc522.PICC_DumpToSerial(&(mfrc522.uid)); 
-
-    Serial.println("******** times *********");
-    Serial.println(++times);
-    Serial.println("******** times *********");
-
     // short beep
-    digitalWrite(SS_PIN, HIGH);   
+    digitalWrite(beepPin, HIGH);   
     delay(100);
-    digitalWrite(SS_PIN, LOW);
+    digitalWrite(beepPin, LOW);
+    
+    // Dump debug info about the card; PICC_HaltA() is automatically called
+    //mfrc522.PICC_DumpToSerial(&(mfrc522.uid)); 
 
-            
+    //Serial.println("******** times *********");
+    //Serial.println(++times);
+    //Serial.println("******** times *********");
+
+    // 顯示卡片內容
+    Serial.print(F("Card UID:"));
+    dump_byte_array(mfrc522.uid.uidByte, mfrc522.uid.size); // 顯示卡片的UID
+    Serial.println();
+    Serial.print(F("PICC type: "));
+    MFRC522::PICC_Type piccType = mfrc522.PICC_GetType(mfrc522.uid.sak);
+    Serial.println(mfrc522.PICC_GetTypeName(piccType));  //顯示卡片的類型
+
+    mfrc522.PICC_HaltA();  // 卡片進入停止模式
+    delay(500);
+
+#if defined(test_WiFi) 
     // wait for WiFi connection
     if ((WiFiMulti.run() == WL_CONNECTED)) {
   
@@ -185,7 +219,19 @@ void loop() {
         Serial.printf("[HTTP} Unable to connect\n");
       }
     }
+#endif
+    
   }
     
   //delay(30000);
+}
+
+/**
+ * 這個副程式把讀取到的UID，用16進位顯示出來
+ */
+void dump_byte_array(byte *buffer, byte bufferSize) {
+  for (byte i = 0; i < bufferSize; i++) {
+    Serial.print(buffer[i] < 0x10 ? " 0" : " ");
+    Serial.print(buffer[i], HEX);
+  }
 }

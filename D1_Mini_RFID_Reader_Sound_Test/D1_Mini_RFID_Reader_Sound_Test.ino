@@ -1,192 +1,102 @@
-//#define use_u8g2
-
-#define redLED 3 //RX
-#define greenLED D1
-#define blueLED D2
-
 #include <Arduino.h>
-#include <ESP8266WiFi.h>
-#include <ESP8266WiFiMulti.h>
-
-#include <ESP8266HTTPClient.h>
-#include <WiFiClient.h>
-
-#if defined(use_u8g2)
-#include <U8g2lib.h> // 0.96" SSD1306-based OLED display
-U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2(
-  U8G2_R0, 
-  0, // clock=GPIO0=D3 in D1-Mini
-  2, // data =GPIO2=D4 in D1-Mini
-  U8X8_PIN_NONE
-); // All Boards without Reset of the Display
+#ifdef ESP32
+  #include <WiFi.h>
+  #include "SPIFFS.h"
+#else
+  #include <ESP8266WiFi.h>
 #endif
+#include "AudioFileSourceSPIFFS.h"
+#include "AudioFileSourceID3.h"
+#include "AudioGeneratorMP3.h"
+#include "AudioOutputI2SNoDAC.h"
 
-#include <SPI.h>
-// MRFC522
-#include <MFRC522.h>
-#define RST_PIN         D0 //D3       // Configurable, see typical pin layout above
-#define SS_PIN          D8 //D4       // Configurable, see typical pin layout above
-MFRC522 mfrc522(SS_PIN, RST_PIN);  // Create MFRC522 instance
+// To run, set your ESP8266 build to 160MHz, and include a SPIFFS of 512KB or greater.
+// Use the "Tools->ESP8266/ESP32 Sketch Data Upload" menu to write the MP3 to SPIFFS
+// Then upload the sketch normally.  
 
-ESP8266WiFiMulti WiFiMulti;
+// pno_cs from https://ccrma.stanford.edu/~jos/pasp/Sound_Examples.html
 
-void setup() {
-   
-  // LED test
-  //********************* CHANGE PIN FUNCTION **********************
-  pinMode(redLED, FUNCTION_3); //GPIO 3 swap the pin from RX to a GPIO.
-  //****************************************************************
-  pinMode(redLED, OUTPUT);    
-  pinMode(greenLED,OUTPUT);
-  pinMode(blueLED,OUTPUT);
-  digitalWrite(greenLED, HIGH); 
-  delay(1000);            // waits for a second
-  digitalWrite(greenLED, LOW);  
-  digitalWrite(blueLED, HIGH); 
-  delay(1000);            // waits for a second
-  digitalWrite(blueLED, LOW); 
-  digitalWrite(redLED, HIGH);   
-  delay(1000);
-  digitalWrite(redLED, LOW);
-  delay(1000);  
-        
-#if defined(use_u8g2)
-  u8g2.begin();
-  u8g2.enableUTF8Print(); 
-  u8g2.setFont(u8g2_font_unifont_t_chinese2);
-  u8g2.setFontMode(1);  /* activate transparent font mode */
+AudioGeneratorMP3 *mp3;
+AudioFileSourceSPIFFS *file;
+AudioOutputI2SNoDAC *out;
+AudioFileSourceID3 *id3;
 
-  u8g2.clearBuffer();
-  u8g2.setCursor(0, 13);   
-  u8g2.print("Testing Line #1");  
-  u8g2.setCursor(0, 29);   
-  u8g2.print("Testing Line #2");  
-  u8g2.setCursor(0, 45);   
-  u8g2.print("Testing Line #3");  
-  u8g2.setCursor(0, 61);   
-  u8g2.print("Testing Line #4");  
 
-  u8g2.sendBuffer();
-#endif    
+// Called when a metadata event occurs (i.e. an ID3 tag, an ICY block, etc.
+void MDCallback(void *cbData, const char *type, bool isUnicode, const char *string)
+{
+  (void)cbData;
+  Serial.printf("ID3 callback for: %s = '", type);
 
-  //********************* CHANGE PIN FUNCTION **********************
-  //pinMode(redLED, FUNCTION_0); //GPIO 3 swap the pin to a RX.
-  //****************************************************************
-  
-  Serial.begin(115200);
-  // Serial.setDebugOutput(true);
-
-  Serial.println();
-  Serial.println();
-
-  Serial.println("Source: MAQ D:\WebApp Projects\ArduinoDevices\P02-人機綁定\man-machine-RFID-bind\D1_Mini_RFID_Reader_Test");  
-  Serial.println();
-
-  SPI.begin();
-  mfrc522.PCD_Init();   // Init MFRC522
-  delay(4);       // Optional delay. Some board do need more time after init to be ready, see Readme
-  mfrc522.PCD_DumpVersionToSerial();  // Show details of PCD - MFRC522 Card Reader details
-  Serial.println(F("Scan PICC to see UID, SAK, type, and data blocks..."));     
-
-  for (uint8_t t = 4; t > 0; t--) {
-    Serial.printf("[SETUP] WAIT %d...\n", t);
-    Serial.flush();
-    delay(1000);
+  if (isUnicode) {
+    string += 2;
   }
-
-  WiFi.mode(WIFI_STA);
-  WiFiMulti.addAP("TCRD4G", "cOUWUnWPU1");
-  WiFiMulti.addAP("abc", "12345678");  
-
+  
+  while (*string) {
+    char a = *(string++);
+    if (isUnicode) {
+      string++;
+    }
+    Serial.printf("%c", a);
+  }
+  Serial.printf("'\n");
+  Serial.flush();
 }
 
-long times=0;
-void loop() {
 
-//  //********************* CHANGE PIN FUNCTION **********************
-//  pinMode(redLED, FUNCTION_3); //GPIO 3 swap the pin from RX to a GPIO.
-//  //****************************************************************
-//  pinMode(redLED, OUTPUT); 
-//  digitalWrite(redLED, HIGH);   
-//  delay(1000);
-//  digitalWrite(redLED, LOW);
-//  delay(1000);  
-//  
-//  Serial.begin(115200);  
+void setup()
+{
+  WiFi.mode(WIFI_OFF); 
+  Serial.begin(115200);
+  delay(1000);
+  SPIFFS.begin();
+  Serial.printf("Sample MP3 playback begins...\n");
 
-  // ***** re-init for cheap RFID cards
-  mfrc522.PCD_Init();
-  delay(4);  
-  // *****
-    
-  // Reset the loop if no new card present on the sensor/reader. This saves the entire process when idle.
-  if ( ! mfrc522.PICC_IsNewCardPresent()) {
+  audioLogger = &Serial;
+  //file = new AudioFileSourceSPIFFS("/pno-cs.mp3");
+  file = new AudioFileSourceSPIFFS("/card-not-bind.mp3");  
+  id3 = new AudioFileSourceID3(file);
+  id3->RegisterMetadataCB(MDCallback, (void*)"ID3TAG");
 
-    
-    // Read A0
-    //analogValue=analogRead(A0);
-//    if (analogValue <1000){
-//      Serial.println(analogRead(A0));   
-//      return;
-//    }
-       
-  } else {
-    // Select one of the cards
-    if ( ! mfrc522.PICC_ReadCardSerial()) {
-      // Read A0
-      Serial.println(analogRead(A0));      
-      return;
-    }
+  out = new AudioOutputI2SNoDAC();
+  mp3 = new AudioGeneratorMP3();
+  mp3->begin(id3, out);
 
-    // Dump debug info about the card; PICC_HaltA() is automatically called
-    mfrc522.PICC_DumpToSerial(&(mfrc522.uid)); 
-
-    Serial.println("******** times *********");
-    Serial.println(++times);
-    Serial.println("******** times *********");
-
-    // short beep
-    digitalWrite(SS_PIN, HIGH);   
-    delay(100);
-    digitalWrite(SS_PIN, LOW);
-
-            
-    // wait for WiFi connection
-    if ((WiFiMulti.run() == WL_CONNECTED)) {
-  
-      WiFiClient client;
-  
-      HTTPClient http;
-  
-      Serial.print("[HTTP] begin...\n");
-      //if (http.begin(client, "http://jigsaw.w3.org/HTTP/connection.html")) {  // HTTP
-      if (http.begin(client, "http://charder-weight-api.herokuapp.com/")) {  // HTTP
-  
-  
-        Serial.print("[HTTP] GET...\n");
-        // start connection and send HTTP header
-        int httpCode = http.GET();
-  
-        // httpCode will be negative on error
-        if (httpCode > 0) {
-          // HTTP header has been send and Server response header has been handled
-          Serial.printf("[HTTP] GET... code: %d\n", httpCode);
-  
-          // file found at server
-          if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
-            String payload = http.getString();
-            Serial.println(payload);
-          }
-        } else {
-          Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
-        }
-  
-        http.end();
-      } else {
-        Serial.printf("[HTTP} Unable to connect\n");
-      }
-    }
+  Serial.println("Play 卡片尚未綁定");
+  while (mp3->isRunning()) {
+    if (!mp3->loop()) mp3->stop();
   }
-    
-  //delay(30000);
+  Serial.printf("MP3 1 done\n");
+  delay(1000);
+
+  file = new AudioFileSourceSPIFFS("/net-not-connected.mp3");  
+  id3 = new AudioFileSourceID3(file);
+  mp3->begin(id3, out);  
+  Serial.println("Play 網路未連線");  
+  while (mp3->isRunning()) {
+    if (!mp3->loop()) mp3->stop();
+  }
+  Serial.printf("MP3 2 done\n");
+  delay(1000);  
+   
+}
+
+void loop()
+{
+//  if (mp3->isRunning()) {
+//    if (!mp3->loop()) mp3->stop();
+//  } else {
+//    audio_numbers--;
+//    //Serial.printf("MP3 %d done\n", );
+//    if (audio_numbers==0) {
+//      audio_numbers--; 
+//      Serial.println("all done");
+//      delay(1000);      
+//    } else {
+//      delay(1000);
+//      file = new AudioFileSourceSPIFFS("/net-not-connected.mp3");
+//      id3 = new AudioFileSourceID3(file);
+//      mp3->begin(id3, out);       
+//    }
+//  }
 }

@@ -25,6 +25,16 @@
 
           <label>RFID ID: </label><label id="rfid_id"></label>
         </div>
+        <br><br><br><br> <br><br>
+        <div style="float:right;  margin-right:20px">  
+     
+          GroupID<br>
+          <input id="groupid_input" type="text" style="width:140px" value="test"><br><br>
+        </div>   
+        <div style="float:right;  margin-right:20px">        
+          SiteID<br>
+          <input id="siteid_input" type="text" style="width:140px" value="test"><br><br>
+        </div>              
         
 <!--
         <div id="qr_div">
@@ -33,6 +43,8 @@
 -->
         
         <script>
+          $('#qrcode').qrcode({width: 300,height: 300,text: "test"}); 
+          
           var limit = 10; //your input limit
           //$(document).on('ready',function(){
               $("#rfid_input").focus(); 
@@ -49,11 +61,17 @@
                       $("#qrcode").remove();
                       $("#qr_div").append("<div id='qrcode'></div>");   
                     
+                      var combinedText = '{"rfid":"' + newValue + '",' +
+                                         ' "product_group_id":"' + $("#groupid_input").val() + '",' +
+                                         ' "site_id":"' + $("#siteid_input").val() + '"' +
+                                         '}';
+                      console.log(combinedText);
+                    
                       setTimeout( function() {
                         $("#rfid_input").val("");   
                         //$('#qrcode').qrcode(newValue);                          
                         // for desktop $('#qrcode').qrcode({width: 410,height: 410,text: newValue}); 
-                        $('#qrcode').qrcode({width: 300,height: 300,text: newValue}); // for 3.5" portrait 320x480 LCD                       
+                        $('#qrcode').qrcode({width: 300,height: 300,text: combinedText}); // for 3.5" portrait 320x480 LCD                       
                         $("#rfid_input").focus(); 
                       }, 500);
                   }
