@@ -31,6 +31,7 @@
           GroupID<br>
           <input id="groupid_input" type="text" style="width:140px" value="test"><br><br>
         </div>   
+        <br><br><br>
         <div style="float:right;  margin-right:20px">        
           SiteID<br>
           <input id="siteid_input" type="text" style="width:140px" value="test"><br><br>
@@ -62,8 +63,8 @@
                       $("#qr_div").append("<div id='qrcode'></div>");   
                     
                       var combinedText = '{"rfid":"' + newValue + '",' +
-                                         ' "product_group_id":"' + $("#groupid_input").val() + '",' +
-                                         ' "site_id":"' + $("#siteid_input").val() + '"' +
+                                         ' "id1":"' + $("#groupid_input").val() + '",' +
+                                         ' "id2":"' + $("#siteid_input").val() + '"' +
                                          '}';
                       console.log(combinedText);
                     
