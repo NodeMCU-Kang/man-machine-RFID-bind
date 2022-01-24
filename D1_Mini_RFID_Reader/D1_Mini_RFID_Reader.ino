@@ -41,7 +41,7 @@ const char* ssid = "TCRD4G";
 const char* password = "cOUWUnWPU1";
 #endif
 
-#define jigsaw
+//#define jigsaw
 #define heroku
 
 #if defined(jigsaw)
