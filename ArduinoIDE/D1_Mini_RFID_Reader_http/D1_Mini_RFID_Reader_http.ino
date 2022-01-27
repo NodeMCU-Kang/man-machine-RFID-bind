@@ -1,10 +1,11 @@
 #include <Arduino.h>
 
 #include <ESP8266WiFi.h>
-#include <ESP8266WiFiMulti.h>
+//#include <ESP8266WiFiMulti.h>
 
 #include <ESP8266HTTPClient.h>
 #include <WiFiClient.h>
+#include <WiFiClientSecureBearSSL.h>
 
 #include <SPI.h>
 // MRFC522
@@ -18,7 +19,7 @@ MFRC522 mfrc522(SS_PIN, RST_PIN);     // Create MFRC522 instance
 #define redLED   D2 // same as beep
 #define beepPin  D2
 
-ESP8266WiFiMulti WiFiMulti;
+//ESP8266WiFiMulti WiFiMulti;
 
 long times=0;
 WiFiClient client;
@@ -42,7 +43,8 @@ const char* password = "cOUWUnWPU1";
 #endif
 
 //#define jigsaw
-#define heroku
+//#define heroku
+#define aws_rfid
 
 #if defined(jigsaw)
 const char* apiURL = "http://jigsaw.w3.org/HTTP/connection.html";
@@ -50,6 +52,14 @@ const char* apiURL = "http://jigsaw.w3.org/HTTP/connection.html";
 #if defined(heroku)
 const char* apiURL = "http://charder-weight-api.herokuapp.com/";
 #endif
+
+#if defined(aws_rfid)
+const char* apiURL = "https://ilxgxw0o3a.execute-api.ap-northeast-1.amazonaws.com/ugym/5/v4/machine/machine_user_login_with_rfid";
+#endif
+
+https://ilxgxw0o3a.execute-api.ap-northeast-1.amazonaws.com/ugym/5/v4/machine/machine_user_login_with_rfid
+
+unsigned long lastTime = 0;
 
 void setup() {
 
@@ -79,7 +89,8 @@ void setup() {
 //  WiFi.mode(WIFI_STA);
 
   WiFi.begin(ssid, password);
-
+  http.setTimeout(20000);
+  
   Serial.printf("Connecting to AP/Router %s...\n", ssid); 
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
@@ -91,11 +102,17 @@ void setup() {
 
   // 用 iPhone AP 或 TCRD4G 都沒問題，
   // 但用家裡 TP-LINK AP，第一次呼叫 API 總是失敗，所以這裡做 retry
+  // 雖然查清是 timeout 的問題，用 http.setTimeout(20000); 解決此問題。但留著 retry 作為保險
   for (int i=0; i<3; i++){
-    if(apiHttpGet(apiURL)) 
+    lastTime = millis();
+    if(apiHttpGet(apiURL)) {
+      Serial.printf("delay %d\n", millis() - lastTime);
       break;
-    else 
+    }
+    else {
+      Serial.printf("delay %d\n", millis() - lastTime);
       Serial.printf("Calling API failed %d times\n", (i+1));
+    }
   }
 
   Serial.println(F("Scan PICC to see UID, SAK, type, and data blocks..."));  
@@ -128,10 +145,6 @@ void loop() {
       // Dump debug info about the card; PICC_HaltA() is automatically called
       //mfrc522.PICC_DumpToSerial(&(mfrc522.uid)); 
   
-      //Serial.println("******** times *********");
-      //Serial.println(++times);
-      //Serial.println("******** times *********");
-  
       // 顯示卡片內容
       Serial.print(F("Card UID:"));
       dump_byte_array(mfrc522.uid.uidByte, mfrc522.uid.size); // 顯示卡片的UID
@@ -143,12 +156,18 @@ void loop() {
       mfrc522.PICC_HaltA();  // 卡片進入停止模式
 
       // 用 iPhone AP 或 TCRD4G 都沒問題，
-      // 但用家裡 TP-LINK AP，API 呼叫 API 有時會失敗，所以這裡做 retry      
+      // 但用家裡 TP-LINK AP，API 呼叫 API 有時會失敗，所以這裡做 retry   
+      // 雖然查清是 timeout 的問題，用 http.setTimeout(20000); 解決此問題。但留著 retry 作為保險   
       for (int i=0; i<3; i++){
-        if(apiHttpGet(apiURL)) 
+        lastTime = millis();
+        if(apiHttpGet(apiURL)) {
+          Serial.printf("delay %d\n", millis() - lastTime);
           break;
-        else 
+        }
+        else {
+          Serial.printf("delay %d\n", millis() - lastTime);
           Serial.printf("Calling API failed %d times\n", (i+1));
+        }
       }
               
       Serial.println(F("Scan PICC to see UID, SAK, type, and data blocks..."));      
