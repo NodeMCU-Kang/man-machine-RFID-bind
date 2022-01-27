@@ -50,6 +50,8 @@ const char* apiURL = "https://ilxgxw0o3a.execute-api.ap-northeast-1.amazonaws.co
 #endif
 // ************************************
 
+bool apiHttpsPost(const char* apiURL, String rfid_uid);
+
 unsigned long lastTime = 0;
 long times=0;  // API retry times
 
