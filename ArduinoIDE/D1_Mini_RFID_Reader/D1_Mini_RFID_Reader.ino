@@ -16,8 +16,9 @@ MFRC522 mfrc522(SS_PIN, RST_PIN);     // Create MFRC522 instance
 #define redLED   D2 // same as beep
 #define beepPin  D2
 
-
-WiFiClient httpClient;
+// 這裡全域的 httpsClient 和 https 是給 apiHttpsPost()用的。
+// 若宣告在 apiHttpsPost()裡，每次初始加上 setInsecure()和 setTimeout 會比全域多上 1~2 秒
+// 從約 0.5s 增加為 1.5s~2.5s，嚴重影像使用者體驗。
 std::unique_ptr<BearSSL::WiFiClientSecure>httpsClient(new BearSSL::WiFiClientSecure);
 HTTPClient https;
 
@@ -90,10 +91,12 @@ void setup() {
   Serial.print("Connected! IP address: ");
   Serial.println(WiFi.localIP());
 
+  // 這裡設定 apiHttpsPost()用的 httpsClient 和 https 也是只有一次初始化，節省時間
   httpsClient->setInsecure(); 
   https.setTimeout(20000);  
 
-  apiHttpsGet("https://jigsaw.w3.org/HTTP/connection.html");
+  Serial.println("Get fw_version.json");
+  apiHttpsGet("https://nodemcu-kang.github.io/man-machine-RFID-bind/ArduinoIDE/D1_Mini_RFID_Reader/fw_version.json");
 
   Serial.println();  
   Serial.println(F("Scan PICC to see UID, SAK, type, and data blocks..."));  
@@ -187,7 +190,15 @@ void loop() {
 }
 
 bool apiHttpsGet(const char* apiURL){
-  bool success=false;
+  bool success=false;   
+
+  // 為避免跟 apiHttpsPost 的 httpsClient 和 https 衝突，
+  // apiHttpsGet 每次都會初始化本地的 httpsClient 和 https，以及 setInsecure()和 setTimeout
+  // 雖然時間會久一點，但 apiHttpsGet 只有開始時呼叫，不影響使用者體驗 
+  std::unique_ptr<BearSSL::WiFiClientSecure>httpsClient(new BearSSL::WiFiClientSecure);
+  HTTPClient https;  
+  httpsClient->setInsecure(); 
+  https.setTimeout(20000);   
   
   Serial.print("[HTTPS] begin...\n");
   if (https.begin(*httpsClient, apiURL)) { 
@@ -217,7 +228,7 @@ bool apiHttpsGet(const char* apiURL){
 }
 
 bool apiHttpsPost(const char* apiURL, String rfid_uid){
-  bool success=false;
+  bool success=false;   
   
   Serial.print("[HTTPS] begin...\n");
   //if (https.begin(*httpsClient, "https://ilxgxw0o3a.execute-api.ap-northeast-1.amazonaws.com/ugym/5/v4/machine/machine_user_login_with_rfid")) {
