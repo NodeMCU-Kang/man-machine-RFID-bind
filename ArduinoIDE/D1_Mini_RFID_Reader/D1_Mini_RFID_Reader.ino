@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 #include <WiFiClient.h>
@@ -19,7 +20,13 @@ MFRC522 mfrc522(SS_PIN, RST_PIN);     // Create MFRC522 instance
 // 這裡全域的 httpsClient 和 https 是給 apiHttpsPost()用的。
 // 若宣告在 apiHttpsPost()裡，每次初始加上 setInsecure()和 setTimeout 會比全域多上 1~2 秒
 // 從約 0.5s 增加為 1.5s~2.5s，嚴重影像使用者體驗。
-std::unique_ptr<BearSSL::WiFiClientSecure>httpsClient(new BearSSL::WiFiClientSecure);
+//
+//httpsClient 使用 pointer
+//std::unique_ptr<BearSSL::WiFiClientSecure>httpsClient(new BearSSL::WiFiClientSecure);
+
+//httpsClient 不使用 pointer (我比較習慣，也跟 https 一致)
+BearSSL::WiFiClientSecure httpsClient;
+
 HTTPClient https;
 
 // *** define which AP/Router to use
@@ -51,7 +58,16 @@ const char* apiURL = "https://ilxgxw0o3a.execute-api.ap-northeast-1.amazonaws.co
 #endif
 // ************************************
 
+bool apiHttpsGet(const char* apiURL);
 bool apiHttpsPost(const char* apiURL, String rfid_uid);
+String H8ToD10(byte *buffer, byte bufferSize);
+void powerUpBeep();
+void shortBeep();
+void errorBeep();
+
+//StaticJsonDocument<200> json_doc;
+//char json_input[100];
+//DeserializationError json_error;
 
 unsigned long lastTime = 0;
 long times=0;  // API retry times
@@ -91,8 +107,14 @@ void setup() {
   Serial.print("Connected! IP address: ");
   Serial.println(WiFi.localIP());
 
-  // 這裡設定 apiHttpsPost()用的 httpsClient 和 https 也是只有一次初始化，節省時間
-  httpsClient->setInsecure(); 
+  // 這裡設定 apiHttpsPost()用的 httpsClient 和 https 只有一次初始化，節省時間
+
+  //httpsClient 使用 pointer
+  //httpsClient->setInsecure(); 
+
+  //httpsClient 不使用 pointer (我比較習慣，也跟 https 一致)
+  httpsClient.setInsecure(); 
+  
   https.setTimeout(20000);  
 
   Serial.println("Get fw_version.json");
@@ -149,22 +171,6 @@ void loop() {
   
       mfrc522.PICC_HaltA();  // 卡片進入停止模式
 
-      // 用 iPhone AP 或 TCRD4G 都沒問題，
-      // 但用家裡 TP-LINK AP，API 呼叫 API 有時會失敗，所以這裡做 retry   
-      // 雖然查清是 timeout 的問題，用 http.setTimeout(20000); 解決此問題。但留著 retry 作為保險   
-//      for (int i=0; i<3; i++){
-//        lastTime = millis();
-//        if(apiHttpsPost(apiURL, uid)) {
-//          Serial.printf("delay %d\n", millis() - lastTime);
-//          
-//          break;
-//        }
-//        else {
-//          Serial.printf("delay %d\n", millis() - lastTime);
-//          Serial.printf("Calling API failed %d times\n", (i+1));
-//        }
-//      }
-
       lastTime = millis();
       Serial.println(apiURL);
       if (apiHttpsPost(apiURL, uid)){
@@ -195,10 +201,19 @@ bool apiHttpsGet(const char* apiURL){
   // 為避免跟 apiHttpsPost 的 httpsClient 和 https 衝突，
   // apiHttpsGet 每次都會初始化本地的 httpsClient 和 https，以及 setInsecure()和 setTimeout
   // 雖然時間會久一點，但 apiHttpsGet 只有開始時呼叫，不影響使用者體驗 
+
+  //這邊保留使用 pointer
   std::unique_ptr<BearSSL::WiFiClientSecure>httpsClient(new BearSSL::WiFiClientSecure);
   HTTPClient https;  
+
+  //這邊保留使用 pointer
   httpsClient->setInsecure(); 
   https.setTimeout(20000);   
+
+  StaticJsonDocument<200> json_doc;
+  char json_input[100];
+  DeserializationError json_error;
+  const char* json_element;
   
   Serial.print("[HTTPS] begin...\n");
   if (https.begin(*httpsClient, apiURL)) { 
@@ -213,18 +228,32 @@ bool apiHttpsGet(const char* apiURL){
       Serial.printf("[HTTPS] GET... code: %d\n", httpCode);
 
       // file found at server
-      if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
+      if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {        
         String payload = https.getString();
-        Serial.println(payload);
+        //Serial.println(payload);
+        payload.toCharArray(json_input,100);
+        Serial.println(json_input);        
+        json_error = deserializeJson(json_doc, json_input);
+        if (!json_error) {
+          json_element = json_doc["latestVersion"];
+          Serial.println(String(json_element));    
+          json_element = json_doc["Release"];
+          Serial.println(String(json_element)); 
+          json_element = json_doc["binName"];
+          Serial.println(String(json_element));           
+        }
+          
         success = true;
       }
     } else {
       Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
+      success = false;
     }
 
     https.end();
     return success;
   }  
+  return false;
 }
 
 bool apiHttpsPost(const char* apiURL, String rfid_uid){
@@ -232,8 +261,8 @@ bool apiHttpsPost(const char* apiURL, String rfid_uid){
   
   Serial.print("[HTTPS] begin...\n");
   //if (https.begin(*httpsClient, "https://ilxgxw0o3a.execute-api.ap-northeast-1.amazonaws.com/ugym/5/v4/machine/machine_user_login_with_rfid")) {
-  if (https.begin(*httpsClient, apiURL)) {    
-
+  //if (https.begin(*httpsClient, apiURL)) {    
+  if (https.begin(httpsClient, apiURL)) { 
     https.addHeader("Content-Type", "application/json");
   
     //String postBody = "{\"params\":{\"token_id\":\"rfid_token\",\"login_dict\":{\"rf_id\":\"2512255499\",\"wifi_mac\":\"48:3F:DA:49:2E:46\"}}}";
