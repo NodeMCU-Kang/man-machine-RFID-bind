@@ -93,6 +93,8 @@ void setup() {
   httpsClient->setInsecure(); 
   https.setTimeout(20000);  
 
+  apiHttpsGet("https://jigsaw.w3.org/HTTP/connection.html");
+
   Serial.println();  
   Serial.println(F("Scan PICC to see UID, SAK, type, and data blocks..."));  
 }
@@ -184,6 +186,36 @@ void loop() {
   } 
 }
 
+bool apiHttpsGet(const char* apiURL){
+  bool success=false;
+  
+  Serial.print("[HTTPS] begin...\n");
+  if (https.begin(*httpsClient, apiURL)) { 
+
+    Serial.print("[HTTPS] GET...\n");
+    // start connection and send HTTP header
+    int httpCode = https.GET();
+
+    // httpCode will be negative on error
+    if (httpCode > 0) {
+      // HTTP header has been send and Server response header has been handled
+      Serial.printf("[HTTPS] GET... code: %d\n", httpCode);
+
+      // file found at server
+      if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
+        String payload = https.getString();
+        Serial.println(payload);
+        success = true;
+      }
+    } else {
+      Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
+    }
+
+    https.end();
+    return success;
+  }  
+}
+
 bool apiHttpsPost(const char* apiURL, String rfid_uid){
   bool success=false;
   
@@ -217,7 +249,7 @@ bool apiHttpsPost(const char* apiURL, String rfid_uid){
         success = true;
       }
     } else {
-      Serial.printf("[HTTPS] GET... failed, error: %s\n", 
+      Serial.printf("[HTTPS] POST... failed, error: %s\n", 
                      https.errorToString(httpCode).c_str());
     }
 
