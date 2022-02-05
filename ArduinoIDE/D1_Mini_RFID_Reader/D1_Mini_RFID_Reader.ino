@@ -12,9 +12,11 @@
 #define SS_PIN          D8 //D4       // Configurable, see typical pin layout above
 MFRC522 mfrc522(SS_PIN, RST_PIN);     // Create MFRC522 instance
 
-#define blueLED   3 //RX
+//Buzzer has capacitance, connected to D3 or D4, will cause booting unstable.
+//So use D2 to drive buzzer 
+#define blueLED  D4
 #define greenLED D1
-#define redLED   D2 // same as beep
+#define redLED   D3
 #define beepPin  D2
 
 // 這裡全域的 httpsClient 和 https 是給 apiHttpsPost()用的。
@@ -74,10 +76,14 @@ long times=0;  // API retry times
 
 void setup() {
 
+  pinMode(redLED, OUTPUT); 
   pinMode(greenLED, OUTPUT); 
+  pinMode(blueLED, OUTPUT); 
   pinMode(beepPin, OUTPUT); 
 
-  digitalWrite(greenLED, LOW);
+  digitalWrite(redLED, LOW);
+  digitalWrite(greenLED, LOW);  
+  digitalWrite(blueLED, LOW);  
   digitalWrite(beepPin, LOW);  
 
   powerUpBeep();   // beep--- beep beep
@@ -97,7 +103,9 @@ void setup() {
   WiFi.begin(ssid, password);
 
   Serial.printf("Connecting to AP/Router %s...\n", ssid); 
-  digitalWrite(greenLED, HIGH);
+  digitalWrite(redLED, HIGH);
+  digitalWrite(greenLED, HIGH);  
+  digitalWrite(blueLED, HIGH);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
