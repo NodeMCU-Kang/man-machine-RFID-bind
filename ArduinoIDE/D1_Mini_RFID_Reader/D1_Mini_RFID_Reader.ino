@@ -1,5 +1,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <Arduino_JSON.h>
+#include <EEPROM.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 #include <WiFiClient.h>
@@ -32,17 +34,16 @@ BearSSL::WiFiClientSecure httpsClient;
 HTTPClient https;
 
 // *** define which AP/Router to use
+#define apAPI "https://deploy-ap-api.herokuapp.com/?getAP"
+#define bridge_ssid     "abc"       // 跳板 AP SSID
+#define bridge_password "12345678"  // 跳板 AP PWD
+
 #define MAC
-//#define abc
 //#define TCRD4G
 
 #if defined(MAC)
 const char* ssid = "MAC";
 const char* password = "Kpc24642464";
-#endif
-#if defined(abc)
-const char* ssid = "abc";
-const char* password = "12345678";
 #endif
 #if defined(TCRD4G)
 const char* ssid = "TCRD4G";
@@ -60,12 +61,11 @@ const char* apiURL = "https://ilxgxw0o3a.execute-api.ap-northeast-1.amazonaws.co
 #endif
 // ************************************
 
-bool apiHttpsGet(const char* apiURL);
-bool apiHttpsPost(const char* apiURL, String rfid_uid);
+String apiHttpsGet(const char* apiURL);
+bool   apiHttpsPost(const char* apiURL, String rfid_uid);
 String H8ToD10(byte *buffer, byte bufferSize);
-void powerUpBeep();
-void shortBeep();
-void errorBeep();
+void beep();
+void beeep();
 
 //StaticJsonDocument<200> json_doc;
 //char json_input[100];
@@ -76,36 +76,98 @@ long times=0;  // API retry times
 
 void setup() {
 
-  pinMode(redLED, OUTPUT); 
-  pinMode(greenLED, OUTPUT); 
-  pinMode(blueLED, OUTPUT); 
-  pinMode(beepPin, OUTPUT); 
+  pinMode(redLED,   OUTPUT);    digitalWrite(redLED,   LOW);
+  pinMode(greenLED, OUTPUT);    digitalWrite(greenLED, LOW); 
+  pinMode(blueLED,  OUTPUT);    digitalWrite(blueLED,  LOW);  
+  pinMode(beepPin,  OUTPUT);    digitalWrite(beepPin,  LOW); 
 
-  digitalWrite(redLED, LOW);
-  digitalWrite(greenLED, LOW);  
-  digitalWrite(blueLED, LOW);  
-  digitalWrite(beepPin, LOW);  
+  // beep 1 and green on, indicating power on
+  beep();  digitalWrite(greenLED, HIGH);  
 
-  powerUpBeep();   // beep--- beep beep
-
+  // Init Serial
   Serial.begin(115200);
   Serial.println();
-
   Serial.println("Source: MAQ D:\WebApp Projects\ArduinoDevices\P02-人機綁定\man-machine-RFID-bind\D1_Mini_RFID_Reader");  
   Serial.println();
 
+  // Init SPI and MFRC522
   SPI.begin();
   mfrc522.PCD_Init();   // Init MFRC522
   delay(4);             // Optional delay. Some board do need more time after init to be ready, see Readme
+
+  String aSSID;                   // 場域 AP SSID
+  String aPWD;                    // 場域 AP PWD
+    
+  // Check EEPROM
+  EEPROM.begin(4096); 
+  byte eepromFlag;                // eeprom Flag: 十進制 55 表示有效
+  eepromFlag = EEPROM.read(0); 
+
+
+  char json_input[100];
+  DeserializationError json_error;
+  const char* json_element;
+  StaticJsonDocument<200> json_doc; 
+  String apiReturn;  
+
+  // if eepromFlag !=55, connect to the bridge AP, ssid1/password1
+  // set mobile phone’s hotspot as ssid1/password1
+  if (eepromFlag !=55) {
+    Serial.print("No SSID in EEPROM, Connect to bridge_AP: ");
+    Serial.println(bridge_ssid);
+             
+    // Connect to the Bridge AP
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(bridge_ssid, bridge_password);
+
   
+    Serial.printf("Connecting to bridge hotspot AP %s...\n", bridge_ssid); 
+  
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(500);
+      Serial.print(".");
+    }
+    digitalWrite(greenLED, LOW);
+    Serial.println("");
+    Serial.print("Connected! IP address: ");
+    Serial.println(WiFi.localIP());
+
+    Serial.println("Get apAPI");
+    apiReturn = apiHttpsGet(apAPI);  
+    Serial.println(apiReturn);
+    apiReturn.toCharArray(json_input,100);       
+    json_error = deserializeJson(json_doc, json_input);
+    if (!json_error) {
+      json_element = json_doc["SSID"];
+      Serial.println(String(json_element));    
+      json_element = json_doc["PWD"];
+      Serial.println(String(json_element));           
+    }
+      
+    
+//    WiFi.disconnect();
+//    
+//    aSSID =(String) SSID;
+//    aPWD  =(String) PWD;
+//
+//    EEPROM.write(0,55);
+//    writeStringToEEPROM(1, aSSID);
+//    writeStringToEEPROM(1+aSSID.length()+1, aPWD);  
+//    EEPROM.commit(); 
+       
+  } else { // if eepromFlag==55, read aSSID/aPWD from EEPROM
+    aSSID =  readStringFromEEPROM(1);
+    aPWD =  readStringFromEEPROM(1+aSSID.length()+1); 
+  }
+
+  
+    
   //WiFi.mode(WIFI_STA); // 本來以為一定要執行，但好像預設就是 Station mode
 
   WiFi.begin(ssid, password);
 
   Serial.printf("Connecting to AP/Router %s...\n", ssid); 
-  digitalWrite(redLED, HIGH);
-  digitalWrite(greenLED, HIGH);  
-  digitalWrite(blueLED, HIGH);
+
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
@@ -122,11 +184,33 @@ void setup() {
 
   //httpsClient 不使用 pointer (我比較習慣，也跟 https 一致)
   httpsClient.setInsecure(); 
-  
   https.setTimeout(20000);  
 
+  Serial.println("Get apAPI");
+  apiReturn = apiHttpsGet(apAPI);  
+  Serial.println(apiReturn);
+  apiReturn.toCharArray(json_input,100);       
+  json_error = deserializeJson(json_doc, json_input);
+  if (!json_error) {
+    json_element = json_doc["SSID"];
+    Serial.println(String(json_element));    
+    json_element = json_doc["PWD"];
+    Serial.println(String(json_element));           
+  }    
+
   Serial.println("Get fw_version.json");
-  apiHttpsGet("https://nodemcu-kang.github.io/man-machine-RFID-bind/ArduinoIDE/D1_Mini_RFID_Reader/fw_version.json");
+  apiReturn = apiHttpsGet("https://nodemcu-kang.github.io/man-machine-RFID-bind/ArduinoIDE/D1_Mini_RFID_Reader/fw_version.json");
+  Serial.println(apiReturn);
+  apiReturn.toCharArray(json_input,100);       
+  json_error = deserializeJson(json_doc, json_input);
+  if (!json_error) {
+    json_element = json_doc["latestVersion"];
+    Serial.println(String(json_element));    
+    json_element = json_doc["Release"];
+    Serial.println(String(json_element)); 
+    json_element = json_doc["binName"];
+    Serial.println(String(json_element));           
+  }  
 
   Serial.println();  
   Serial.println(F("Scan PICC to see UID, SAK, type, and data blocks..."));  
@@ -163,7 +247,7 @@ void loop() {
 
       digitalWrite(greenLED, HIGH); 
       
-      shortBeep(); // short beep to acknowdge RFID card is read
+      beep(); // short beep to acknowdge RFID card is read
       
       // Dump debug info about the card; PICC_HaltA() is automatically called
       //mfrc522.PICC_DumpToSerial(&(mfrc522.uid)); 
@@ -183,12 +267,12 @@ void loop() {
       Serial.println(apiURL);
       if (apiHttpsPost(apiURL, uid)){
         Serial.printf("API successed in %d\n", millis() - lastTime);
-        shortBeep();
+        beep();
         digitalWrite(greenLED, LOW); 
       }else {
         Serial.printf("API failed in %d\n", millis() - lastTime);
         //delay(500);
-        errorBeep();        
+        //errorBeep();        
       }
 
       Serial.println();
@@ -203,7 +287,7 @@ void loop() {
   } 
 }
 
-bool apiHttpsGet(const char* apiURL){
+String apiHttpsGet(const char* apiURL){
   bool success=false;   
 
   // 為避免跟 apiHttpsPost 的 httpsClient 和 https 衝突，
@@ -218,6 +302,7 @@ bool apiHttpsGet(const char* apiURL){
   httpsClient->setInsecure(); 
   https.setTimeout(20000);   
 
+  String payload;
   StaticJsonDocument<200> json_doc;
   char json_input[100];
   DeserializationError json_error;
@@ -237,31 +322,33 @@ bool apiHttpsGet(const char* apiURL){
 
       // file found at server
       if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {        
-        String payload = https.getString();
+        payload = https.getString();
         //Serial.println(payload);
-        payload.toCharArray(json_input,100);
-        Serial.println(json_input);        
-        json_error = deserializeJson(json_doc, json_input);
-        if (!json_error) {
-          json_element = json_doc["latestVersion"];
-          Serial.println(String(json_element));    
-          json_element = json_doc["Release"];
-          Serial.println(String(json_element)); 
-          json_element = json_doc["binName"];
-          Serial.println(String(json_element));           
-        }
+//        payload.toCharArray(json_input,100);
+//        Serial.println(json_input);        
+//        json_error = deserializeJson(json_doc, json_input);
+//        if (!json_error) {
+//          json_element = json_doc["latestVersion"];
+//          Serial.println(String(json_element));    
+//          json_element = json_doc["Release"];
+//          Serial.println(String(json_element)); 
+//          json_element = json_doc["binName"];
+//          Serial.println(String(json_element));           
+//        }
           
         success = true;
       }
     } else {
       Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
-      success = false;
+      //success = false;
+      payload="";
     }
 
     https.end();
-    return success;
+    return payload;
   }  
-  return false;
+  //return false;
+  return "";
 }
 
 bool apiHttpsPost(const char* apiURL, String rfid_uid){
@@ -327,21 +414,17 @@ String H8ToD10(byte *buffer, byte bufferSize) {
   Serial.println();
   return String(uid);
 }
-void powerUpBeep(){
-  // beep--- beep beep  
-  digitalWrite(beepPin, HIGH);   delay(300);
-  digitalWrite(beepPin, LOW);    delay(100);
-  digitalWrite(beepPin, HIGH);   delay(100);
-  digitalWrite(beepPin, LOW);    delay(100);
-  digitalWrite(beepPin, HIGH);   delay(100);
-  digitalWrite(beepPin, LOW);  
-}
-void shortBeep(){
+
+void beep(){
   // beep
   digitalWrite(beepPin, HIGH);   delay(100);
   digitalWrite(beepPin, LOW);  
 }
-
+void beeep(){
+  // beep
+  digitalWrite(beepPin, HIGH);   delay(300);
+  digitalWrite(beepPin, LOW);  
+}
 void errorBeep(){
   // beep-- beep beep beep beep--
   digitalWrite(beepPin, HIGH);   delay(1000);
@@ -355,3 +438,26 @@ void errorBeep(){
   digitalWrite(beepPin, HIGH);   delay(1000);
   digitalWrite(beepPin, LOW);  
 }
+// EEPROM write/read string routines
+void writeStringToEEPROM(int addrOffset, const String &strToWrite)
+{
+  byte len = strToWrite.length();
+  EEPROM.write(addrOffset, len);
+  for (int i = 0; i < len; i++)
+  {
+    EEPROM.write(addrOffset + 1 + i, strToWrite[i]);
+  }
+}
+
+String readStringFromEEPROM(int addrOffset)
+{
+  int newStrLen = EEPROM.read(addrOffset);
+  char data[newStrLen + 1];
+  for (int i = 0; i < newStrLen; i++)
+  {
+    data[i] = EEPROM.read(addrOffset + 1 + i);
+  }
+  data[newStrLen] = '\0'; // !!! NOTE !!! Remove the space between the slash "/" and "0" (I've added a space because otherwise there is a display bug)
+  return String(data);
+}
+// End EEPROM write/read string routines
