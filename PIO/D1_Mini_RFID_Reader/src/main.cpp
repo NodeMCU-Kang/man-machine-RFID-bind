@@ -6,6 +6,8 @@
 #include <WiFiClient.h>
 #include <WiFiClientSecureBearSSL.h>
 
+#define version "v1.0"
+
 #include <SPI.h>
 // MRFC522
 #include <MFRC522.h>
@@ -41,7 +43,7 @@ HTTPClient https;
 #define bridge_password "12345678"  // 跳板 AP PWD
 
 // define which API URL to use
-#define aws_rfid_err  //for test
+//#define aws_rfid_err  //for test
 #if defined(aws_rfid_err)  // for test
 const char* apiURL = "https://ilxgxw0o3a.execute-api.ap-northeast-1.amazonaws.com/";
 #else
@@ -116,11 +118,21 @@ void setup() {
     Serial.println("Check bridge API for update EEPROM");
 
     digitalWrite(redLED,   HIGH);
+    digitalWrite(blueLED,   HIGH);
     if (checkApAPI(20)!=0){
       digitalWrite(redLED,   LOW);
+      digitalWrite(blueLED,   LOW);
       Serial.println("Read SSID/PWD from EEPROM");
       aSSID =  readStringFromEEPROM(1);
       aPWD =  readStringFromEEPROM(1+aSSID.length()+1); 
+    } else {
+      digitalWrite(redLED,   LOW);
+      digitalWrite(blueLED,   LOW);
+      EEPROM.write(0,0x55);
+      writeStringToEEPROM(1, aSSID);
+      writeStringToEEPROM(1+aSSID.length()+1, aPWD);  
+      EEPROM.commit();       
+      WiFi.disconnect();      
     }
   }
    
@@ -152,25 +164,15 @@ void setup() {
 
   // 這裡設定 apiHttpsPost()用的 httpsClient 和 https 只有一次初始化，節省時間
 
-  //httpsClient 使用 pointer
+  //方法1: httpsClient 使用 pointer 
   //httpsClient->setInsecure(); 
 
-  //httpsClient 不使用 pointer (我比較習慣，也跟 https 一致)
+  //方法2: httpsClient 不使用 pointer (我比較習慣，也跟 https 一致)
   httpsClient.setInsecure(); 
+  
   https.setTimeout(20000);  
 
-  Serial.println("Get apAPI");
-  apiReturn = apiHttpsGet(apAPI);  
-  Serial.println(apiReturn);
-  apiReturn.toCharArray(json_input,100);       
-  json_error = deserializeJson(json_doc, json_input);
-  if (!json_error) {
-    json_element = json_doc["SSID"];
-    Serial.println(String(json_element));    
-    json_element = json_doc["PWD"];
-    Serial.println(String(json_element));           
-  }    
-
+  digitalWrite(greenLED, HIGH);
   Serial.println("Get fw_version.json");
   apiReturn = apiHttpsGet("https://nodemcu-kang.github.io/man-machine-RFID-bind/ArduinoIDE/D1_Mini_RFID_Reader/fw_version.json");
   Serial.println(apiReturn);
@@ -184,6 +186,23 @@ void setup() {
     json_element = json_doc["binName"];
     Serial.println(String(json_element));           
   }  
+
+  //第一次呼叫 apiHttpPost() 會花比較久時間，先呼叫來縮短後續的呼叫時間
+  lastTime = millis();
+  Serial.println(apiURL);
+  digitalWrite(greenLED, HIGH);
+  if (apiHttpsPost(apiURL, "test")){
+    Serial.printf("API successed in %d\n", millis() - lastTime);
+    beep(); delay(200); beep(); delay(200); beep(); delay(200); beep();       
+  }else {
+    Serial.printf("API failed in %d\n", millis() - lastTime);             
+    digitalWrite(errorLED, HIGH); 
+    errorBeep();
+    //delay(3000);        
+    digitalWrite(errorLED, LOW);          
+  }
+
+  digitalWrite(greenLED, LOW);
 
   Serial.println();  
   Serial.println(F("Scan PICC to see UID, SAK, type, and data blocks..."));  
