@@ -15,10 +15,13 @@ MFRC522 mfrc522(SS_PIN, RST_PIN);     // Create MFRC522 instance
 
 //Buzzer has capacitance, connected to D3 or D4, will cause booting unstable.
 //So use D2 to drive buzzer 
-#define blueLED  D4
-#define greenLED D1
-#define redLED   D3
-#define beepPin  D2
+#define blueLED   D4
+#define greenLED  D1
+#define redLED    D3
+#define breathLED greenLED
+#define rfidLED   blueLED
+#define errorLED  redLED
+#define beepPin   D2
 
 // 這裡全域的 httpsClient 和 https 是給 apiHttpsPost()用的。
 // 若宣告在 apiHttpsPost()裡，每次初始加上 setInsecure()和 setTimeout 會比全域多上 1~2 秒
@@ -37,43 +40,34 @@ HTTPClient https;
 #define bridge_ssid     "abc"       // 跳板 AP SSID
 #define bridge_password "12345678"  // 跳板 AP PWD
 
-#define MAC
-//#define TCRD4G
-
-#if defined(MAC)
-const char* ssid = "MAC";
-const char* password = "Kpc24642464";
-#endif
-#if defined(TCRD4G)
-const char* ssid = "TCRD4G";
-const char* password = "cOUWUnWPU1";
-#endif
-// ************************************
-
 // define which API URL to use
-//#define aws_rfid_err
-
-#if defined(aws_rfid_err)
+#define aws_rfid_err  //for test
+#if defined(aws_rfid_err)  // for test
 const char* apiURL = "https://ilxgxw0o3a.execute-api.ap-northeast-1.amazonaws.com/";
 #else
 const char* apiURL = "https://ilxgxw0o3a.execute-api.ap-northeast-1.amazonaws.com/ugym/5/v4/machine/machine_user_login_with_rfid";
 #endif
-// ************************************
 
 String apiHttpsGet(const char* apiURL);
 bool   apiHttpsPost(const char* apiURL, String rfid_uid);
 String H8ToD10(byte *buffer, byte bufferSize);
 void beep();
 void beeep();
+void errorBeep();
 void writeStringToEEPROM(int addrOffset, const String &strToWrite);
 String readStringFromEEPROM(int addrOffset);
-
-//StaticJsonDocument<200> json_doc;
-//char json_input[100];
-//DeserializationError json_error;
+int checkApAPI(int timeoutTick);
+void(* resetFunc) (void) = 0; //declare reset function @ address 0
 
 unsigned long lastTime = 0;
-long times=0;  // API retry times
+String aSSID="";                   // 場域 AP SSID
+String aPWD="";                    // 場域 AP PWD
+
+char json_input[100];
+DeserializationError json_error;
+const char* json_element;
+StaticJsonDocument<200> json_doc; 
+String apiReturn; 
 
 void setup() {
 
@@ -96,89 +90,62 @@ void setup() {
   mfrc522.PCD_Init();   // Init MFRC522
   delay(4);             // Optional delay. Some board do need more time after init to be ready, see Readme
 
-  String aSSID="";                   // 場域 AP SSID
-  String aPWD="";                    // 場域 AP PWD
-    
   // Check EEPROM
   EEPROM.begin(4096); 
   byte eepromFlag;                // eeprom Flag: 十進制 55 表示有效
   eepromFlag = EEPROM.read(0); 
 
-  char json_input[100];
-  DeserializationError json_error;
-  const char* json_element;
-  StaticJsonDocument<200> json_doc; 
-  String apiReturn;  
-
-  // if eepromFlag !=0x55, connect to the bridge AP, ssid1/password1
-  // set mobile phone’s hotspot as ssid1/password1
-  if (eepromFlag !=0xAA) {
+  // if eepromFlag !=0x55, connect to the bridge AP, "abc"/"12345678"
+  // set mobile phone’s hotspot as "abc"/"12345678"
+  if (eepromFlag !=0x55) {
     Serial.print("No SSID in EEPROM, Connect to bridge_AP: ");
-    Serial.println(bridge_ssid);
-    digitalWrite(greenLED, LOW);  
-    digitalWrite(redLED, HIGH);      
-             
-    // Connect to the Bridge AP
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(bridge_ssid, bridge_password);
+    Serial.println(bridge_ssid); 
 
-    Serial.printf("Connecting to bridge hotspot AP %s...\n", bridge_ssid); 
-  
-    while (WiFi.status() != WL_CONNECTED) {
-      delay(500);
-      Serial.print(".");
-    }
-
-    Serial.println("");
-    Serial.print("Connected! IP address: ");
-    Serial.println(WiFi.localIP());
-    digitalWrite(blueLED, HIGH);  
-    while (aSSID=="") {
-      Serial.println("Get apAPI");
-      apiReturn = apiHttpsGet(apAPI);  
-      Serial.println(apiReturn);
-      apiReturn.toCharArray(json_input,100);       
-      json_error = deserializeJson(json_doc, json_input);
-      if (!json_error) {
-        json_element = json_doc["SSID"];
-        Serial.println(String(json_element)); 
-        aSSID = String(json_element);  
-        json_element = json_doc["PWD"];
-        Serial.println(String(json_element)); 
-        aPWD = String(json_element);  
-
-        // EEPROM.write(0,0x55);
-        // writeStringToEEPROM(1, aSSID);
-        // writeStringToEEPROM(1+aSSID.length()+1, aPWD);  
-        // EEPROM.commit();                           
-      }  
-    } 
-    
-    WiFi.disconnect();
-       
+    digitalWrite(redLED,   HIGH);   
+    if (checkApAPI(50)==0){
+      digitalWrite(redLED,   LOW);
+      EEPROM.write(0,0x55);
+      writeStringToEEPROM(1, aSSID);
+      writeStringToEEPROM(1+aSSID.length()+1, aPWD);  
+      EEPROM.commit();       
+      WiFi.disconnect();
+    } else {
+      resetFunc(); //reset
+    }   
   } else { // if eepromFlag==55, read aSSID/aPWD from EEPROM
-    aSSID =  readStringFromEEPROM(1);
-    Serial.printf("EEPROM SSID: %s\n", aSSID);
-    aPWD =  readStringFromEEPROM(1+aSSID.length()+1); 
-    Serial.printf("EEPROM PWD: %s\n", aPWD);
+    Serial.println("Check bridge API for update EEPROM");
+
+    digitalWrite(redLED,   HIGH);
+    if (checkApAPI(20)!=0){
+      digitalWrite(redLED,   LOW);
+      Serial.println("Read SSID/PWD from EEPROM");
+      aSSID =  readStringFromEEPROM(1);
+      aPWD =  readStringFromEEPROM(1+aSSID.length()+1); 
+    }
   }
    
-  beep(); delay(500); beep();
-  digitalWrite(redLED, LOW);   
-  digitalWrite(blueLED, LOW); 
-  digitalWrite(greenLED, HIGH);  
+  Serial.printf("SSID: %s, PWD: %s\n", aSSID.c_str(), aPWD.c_str());
+
+  beep(); delay(200); beep();
 
   //WiFi.mode(WIFI_STA); // 本來以為一定要執行，但好像預設就是 Station mode
 
-  WiFi.begin(ssid, password);
+  WiFi.begin(aSSID, aPWD);
+  Serial.printf("Connecting to AP/Router %s...\n", aSSID.c_str()); 
 
-  Serial.printf("Connecting to AP/Router %s...\n", ssid); 
-
+  digitalWrite(blueLED, HIGH);
+  int iTimeout=0;
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    Serial.print(".");
+    Serial.printf("%d.", iTimeout);
+    if (iTimeout++==50) {
+      resetFunc();    
+      break;
+    }
   }
-  digitalWrite(greenLED, LOW);
+  digitalWrite(blueLED, LOW);
+  beep(); delay(200); beep(); delay(200); beep();
+
   Serial.println("");
   Serial.print("Connected! IP address: ");
   Serial.println(WiFi.localIP());
@@ -231,9 +198,9 @@ void loop() {
     // *** 呼吸燈   
     i++;
     if (i%10==0){
-      digitalWrite(greenLED, HIGH);    
+      digitalWrite(breathLED, HIGH);    
     } else {
-      digitalWrite(greenLED, LOW);
+      digitalWrite(breathLED, LOW);
     }  
     // ****************************  
     
@@ -251,7 +218,9 @@ void loop() {
         return;
       }
 
-      digitalWrite(greenLED, HIGH); 
+      digitalWrite(breathLED, LOW); 
+      digitalWrite(rfidLED, HIGH); 
+
       
       beep(); // short beep to acknowdge RFID card is read
       
@@ -274,11 +243,17 @@ void loop() {
       if (apiHttpsPost(apiURL, uid)){
         Serial.printf("API successed in %d\n", millis() - lastTime);
         beep();
-        digitalWrite(greenLED, LOW); 
+        digitalWrite(breathLED, LOW);         
+        digitalWrite(rfidLED, LOW);         
       }else {
         Serial.printf("API failed in %d\n", millis() - lastTime);
-        //delay(500);
-        //errorBeep();        
+        digitalWrite(breathLED, LOW);                
+        digitalWrite(rfidLED, LOW);                
+        digitalWrite(errorLED, HIGH); 
+        errorBeep();
+        //delay(3000);        
+        digitalWrite(errorLED, LOW);         
+        
       }
 
       Serial.println();
@@ -289,7 +264,7 @@ void loop() {
   } else {
     Serial.println("Networked is not connected");
     digitalWrite(greenLED, LOW);
-    delay(1000);
+    //delay(1000);
   } 
 }
 
@@ -447,3 +422,42 @@ String readStringFromEEPROM(int addrOffset)
 }
 // End EEPROM write/read string routines
 
+int checkApAPI(int timeoutTick){            
+  // Connect to the Bridge AP
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(bridge_ssid, bridge_password);
+
+  Serial.printf("Connecting to bridge hotspot AP %s...\n", bridge_ssid); 
+
+  int iTimeout=0;
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.printf("%d.", iTimeout);
+    if (iTimeout++==timeoutTick) {
+      return -1; //timeout failure
+    }
+  }
+
+  Serial.println("");
+  Serial.print("Connected! IP address: ");
+  Serial.println(WiFi.localIP());
+  while (aSSID=="") {
+    Serial.println("Get apAPI");
+    apiReturn = apiHttpsGet(apAPI);  
+    Serial.println(apiReturn);
+    apiReturn.toCharArray(json_input,100);       
+    json_error = deserializeJson(json_doc, json_input);
+    if (!json_error) {
+      json_element = json_doc["SSID"];
+      aSSID = String(json_element);  
+      json_element = json_doc["PWD"];
+      aPWD = String(json_element);  
+
+      // EEPROM.write(0,0x55);
+      // writeStringToEEPROM(1, aSSID);
+      // writeStringToEEPROM(1+aSSID.length()+1, aPWD);  
+      // EEPROM.commit();                           
+    } else return -2; //json error  
+  }
+  return 0; //success  
+}
