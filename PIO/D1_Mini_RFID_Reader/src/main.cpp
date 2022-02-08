@@ -48,6 +48,7 @@ HTTPClient https;
 const char* apiURL = "https://ilxgxw0o3a.execute-api.ap-northeast-1.amazonaws.com/";
 #else
 const char* apiURL = "https://ilxgxw0o3a.execute-api.ap-northeast-1.amazonaws.com/ugym/5/v4/machine/machine_user_login_with_rfid";
+//const char* apiURL = "https://api-for-sql.herokuapp.com/test";
 #endif
 
 String apiHttpsGet(const char* apiURL);
@@ -94,7 +95,7 @@ void setup() {
 
   // Check EEPROM
   EEPROM.begin(4096); 
-  byte eepromFlag;                // eeprom Flag: 十進制 55 表示有效
+  byte eepromFlag;                // eeprom Flag: 十六進制 55 表示有效
   eepromFlag = EEPROM.read(0); 
 
   // if eepromFlag !=0x55, connect to the bridge AP, "abc"/"12345678"
@@ -144,6 +145,8 @@ void setup() {
 
   WiFi.begin(aSSID, aPWD);
   Serial.printf("Connecting to AP/Router %s...\n", aSSID.c_str()); 
+
+  wifi_set_sleep_type(NONE_SLEEP_T); // 不要讓 WiFi 做 sleep  
 
   digitalWrite(blueLED, HIGH);
   int iTimeout=0;
@@ -210,9 +213,27 @@ void setup() {
 
 byte i=0;  // 呼吸燈指標
 void loop() {
-
-  delay(100);  
+  
+  delay(2000);  
   if (WiFi.status() == WL_CONNECTED) {
+
+      lastTime = millis();
+      if (apiHttpsPost(apiURL, "test")){
+        unsigned int usedTime = millis() - lastTime;
+        //Serial.printf("API successed in %d\n", usedTime); //millis() - lastTime);
+        //beep();
+        //digitalWrite(breathLED, LOW);         
+        digitalWrite(rfidLED, LOW);         
+      }else {
+        Serial.printf("API failed in %d\n", millis() - lastTime);
+        digitalWrite(breathLED, LOW);                
+        digitalWrite(rfidLED, LOW);                
+        digitalWrite(errorLED, HIGH); 
+        errorBeep();
+        //delay(3000);        
+        digitalWrite(errorLED, LOW);         
+        
+      }    
 
     // *** 呼吸燈   
     // i++;
@@ -257,10 +278,11 @@ void loop() {
   
       mfrc522.PICC_HaltA();  // 卡片進入停止模式
 
-      lastTime = millis();
       Serial.println(apiURL);
+      lastTime = millis();
       if (apiHttpsPost(apiURL, uid)){
-        Serial.printf("API successed in %d\n", millis() - lastTime);
+        unsigned int usedTime = millis() - lastTime;
+        //Serial.printf("API successed in %d\n", usedTime); //millis() - lastTime);
         beep();
         //digitalWrite(breathLED, LOW);         
         digitalWrite(rfidLED, LOW);         
@@ -453,6 +475,7 @@ int checkApAPI(int timeoutTick){
     delay(500);
     Serial.printf("%d.", iTimeout);
     if (iTimeout++==timeoutTick) {
+      Serial.println();
       return -1; //timeout failure
     }
   }
