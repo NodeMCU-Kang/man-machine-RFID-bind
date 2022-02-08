@@ -72,6 +72,7 @@ const char* json_element;
 StaticJsonDocument<200> json_doc; 
 String apiReturn; 
 
+unsigned int max_delay = 0;
 void setup() {
 
   pinMode(redLED,   OUTPUT);    digitalWrite(redLED,   LOW);
@@ -209,17 +210,18 @@ void setup() {
 
   Serial.println();  
   Serial.println(F("Scan PICC to see UID, SAK, type, and data blocks..."));  
+  lastTime = millis();
+  max_delay =0;
 }
 
 byte i=0;  // 呼吸燈指標
 void loop() {
-  
-  delay(2000);  
+
+
   if (WiFi.status() == WL_CONNECTED) {
 
-      lastTime = millis();
+    if (millis()-lastTime > 120000){   
       if (apiHttpsPost(apiURL, "test")){
-        unsigned int usedTime = millis() - lastTime;
         //Serial.printf("API successed in %d\n", usedTime); //millis() - lastTime);
         //beep();
         //digitalWrite(breathLED, LOW);         
@@ -232,8 +234,10 @@ void loop() {
         errorBeep();
         //delay(3000);        
         digitalWrite(errorLED, LOW);         
-        
-      }    
+        lastTime = millis();
+      }  
+
+    }  
 
     // *** 呼吸燈   
     // i++;
@@ -300,6 +304,7 @@ void loop() {
       Serial.println();
       Serial.println(F("Scan PICC to see UID, SAK, type, and data blocks..."));      
       //delay(500);
+      lastTime = millis();
     }
 
   } else {
@@ -366,13 +371,16 @@ bool apiHttpsPost(const char* apiURL, String rfid_uid){
     String postBodyEnd   = "\",\"wifi_mac\":\"48:3F:DA:49:2E:46\"}}}";
     String postBody = String(postBodyBegin + rfid_uid);
            postBody = String(postBody + postBodyEnd);
-    Serial.println(postBody);
+    //Serial.println(postBody);
 
     Serial.print("[HTTP] POST...\n");
     lastTime = millis();
     int httpCode = https.POST(postBody);
     Serial.print("API Time:");
-    Serial.println(millis() - lastTime);
+    unsigned int apiTime = millis() - lastTime;
+    if (apiTime >max_delay) max_delay = apiTime;
+
+    Serial.printf("API Time:%d, Max_delay:%d\n", apiTime, max_delay);
 
     // httpCode will be negative on error
     if (httpCode > 0) {
@@ -381,7 +389,7 @@ bool apiHttpsPost(const char* apiURL, String rfid_uid){
       if (httpCode == HTTP_CODE_OK || 
           httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
         String payload = https.getString();
-        Serial.println(payload);
+        //Serial.println(payload);
         success = true;
       }
     } else {
