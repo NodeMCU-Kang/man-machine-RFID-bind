@@ -202,7 +202,7 @@ void setup() {
     digitalWrite(errorLED, LOW);          
   }
 
-  digitalWrite(greenLED, LOW);
+  //digitalWrite(greenLED, LOW);
 
   Serial.println();  
   Serial.println(F("Scan PICC to see UID, SAK, type, and data blocks..."));  
@@ -215,12 +215,12 @@ void loop() {
   if (WiFi.status() == WL_CONNECTED) {
 
     // *** 呼吸燈   
-    i++;
-    if (i%10==0){
-      digitalWrite(breathLED, HIGH);    
-    } else {
-      digitalWrite(breathLED, LOW);
-    }  
+    // i++;
+    // if (i%10==0){
+    //   digitalWrite(breathLED, HIGH);    
+    // } else {
+    //   digitalWrite(breathLED, LOW);
+    // }  
     // ****************************  
     
     // re-init for cheap RFID cards
@@ -237,7 +237,7 @@ void loop() {
         return;
       }
 
-      digitalWrite(breathLED, LOW); 
+      //digitalWrite(breathLED, LOW); 
       digitalWrite(rfidLED, HIGH); 
 
       
@@ -262,7 +262,7 @@ void loop() {
       if (apiHttpsPost(apiURL, uid)){
         Serial.printf("API successed in %d\n", millis() - lastTime);
         beep();
-        digitalWrite(breathLED, LOW);         
+        //digitalWrite(breathLED, LOW);         
         digitalWrite(rfidLED, LOW);         
       }else {
         Serial.printf("API failed in %d\n", millis() - lastTime);
