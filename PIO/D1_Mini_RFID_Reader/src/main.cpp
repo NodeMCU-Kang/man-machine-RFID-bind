@@ -215,12 +215,13 @@ void setup() {
 }
 
 byte i=0;  // 呼吸燈指標
+int coffee=0;
+bool silent=true;
 void loop() {
-
-
   if (WiFi.status() == WL_CONNECTED) {
 
-    if (millis()-lastTime > 120000){   
+    if (millis()-lastTime > 60000){ //refresh to against nodding
+      if (!silent) Serial.printf("Coffee at %d\n", millis());  
       if (apiHttpsPost(apiURL, "test")){
         //Serial.printf("API successed in %d\n", usedTime); //millis() - lastTime);
         //beep();
@@ -272,17 +273,17 @@ void loop() {
       //mfrc522.PICC_DumpToSerial(&(mfrc522.uid)); 
   
       // 顯示卡片內容
-      Serial.print(F("Card UID:"));
+      if (!silent) Serial.print(F("Card UID:"));
       //dump_byte_array(mfrc522.uid.uidByte, mfrc522.uid.size); // 顯示卡片的UID
       String uid = H8ToD10(mfrc522.uid.uidByte, mfrc522.uid.size);
-      Serial.println(uid);
+      if (!silent) Serial.println(uid);
       //Serial.print(F("PICC type: "));
       //MFRC522::PICC_Type piccType = mfrc522.PICC_GetType(mfrc522.uid.sak);
       //Serial.println(mfrc522.PICC_GetTypeName(piccType));  //顯示卡片的類型
   
       mfrc522.PICC_HaltA();  // 卡片進入停止模式
 
-      Serial.println(apiURL);
+      if (!silent) Serial.println(apiURL);
       lastTime = millis();
       if (apiHttpsPost(apiURL, uid)){
         unsigned int usedTime = millis() - lastTime;
@@ -291,7 +292,7 @@ void loop() {
         //digitalWrite(breathLED, LOW);         
         digitalWrite(rfidLED, LOW);         
       }else {
-        Serial.printf("API failed in %d\n", millis() - lastTime);
+        if (!silent) Serial.printf("API failed in %d\n", millis() - lastTime);
         digitalWrite(breathLED, LOW);                
         digitalWrite(rfidLED, LOW);                
         digitalWrite(errorLED, HIGH); 
@@ -301,8 +302,8 @@ void loop() {
         
       }
 
-      Serial.println();
-      Serial.println(F("Scan PICC to see UID, SAK, type, and data blocks..."));      
+      if (!silent) Serial.println();
+      if (!silent) Serial.println(F("Scan PICC to see UID, SAK, type, and data blocks..."));      
       //delay(500);
       lastTime = millis();
     }
@@ -360,10 +361,10 @@ String apiHttpsGet(const char* apiURL){
 bool apiHttpsPost(const char* apiURL, String rfid_uid){
   bool success=false;   
   
-  Serial.print("[HTTPS] begin...\n");
+  if (!silent) Serial.print("[HTTPS] begin...\n");
   //if (https.begin(*httpsClient, "https://ilxgxw0o3a.execute-api.ap-northeast-1.amazonaws.com/ugym/5/v4/machine/machine_user_login_with_rfid")) {
-  //if (https.begin(*httpsClient, apiURL)) {    
-  if (https.begin(httpsClient, apiURL)) { 
+  //if (https.begin(*httpsClient, apiURL)) { //使用 pointer 使用方式  
+  if (https.begin(httpsClient, apiURL)) { //不使用 pointer 使用方式
     https.addHeader("Content-Type", "application/json");
   
     //String postBody = "{\"params\":{\"token_id\":\"rfid_token\",\"login_dict\":{\"rf_id\":\"2512255499\",\"wifi_mac\":\"48:3F:DA:49:2E:46\"}}}";
@@ -373,18 +374,18 @@ bool apiHttpsPost(const char* apiURL, String rfid_uid){
            postBody = String(postBody + postBodyEnd);
     //Serial.println(postBody);
 
-    Serial.print("[HTTP] POST...\n");
+    if (!silent) Serial.print("[HTTP] POST...\n");
     lastTime = millis();
     int httpCode = https.POST(postBody);
-    Serial.print("API Time:");
     unsigned int apiTime = millis() - lastTime;
     if (apiTime >max_delay) max_delay = apiTime;
 
-    Serial.printf("API Time:%d, Max_delay:%d\n", apiTime, max_delay);
+    Serial.printf("%d, %d\n",coffee++,apiTime); // 統計用
+    if (!silent) Serial.printf("API Time:%d, Max_delay:%d\n", apiTime, max_delay);
 
     // httpCode will be negative on error
     if (httpCode > 0) {
-      Serial.printf("[HTTPS] POST... code: %d\n", httpCode);
+      if (!silent) Serial.printf("[HTTPS] POST... code: %d\n", httpCode);
 
       if (httpCode == HTTP_CODE_OK || 
           httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
@@ -393,13 +394,13 @@ bool apiHttpsPost(const char* apiURL, String rfid_uid){
         success = true;
       }
     } else {
-      Serial.printf("[HTTPS] POST... failed, error: %s\n", 
+      if (!silent) Serial.printf("[HTTPS] POST... failed, error: %s\n", 
                      https.errorToString(httpCode).c_str());
     }
 
     https.end();
   } else {
-    Serial.printf("[HTTPS] Unable to connect\n");
+    if (!silent) Serial.printf("[HTTPS] Unable to connect\n");
   }  
   return success;
 }
