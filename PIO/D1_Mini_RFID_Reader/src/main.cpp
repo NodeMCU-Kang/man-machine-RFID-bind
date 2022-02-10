@@ -89,6 +89,8 @@ void setup() {
   Serial.println("Source: MAQ D:\\WebApp Projects\\ArduinoDevices\\P02-人機綁定\\man-machine-RFID-bind\\D1_Mini_RFID_Reader");  
   Serial.println();
 
+  Serial.println(WiFi.macAddress());
+
   // Init SPI and MFRC522
   SPI.begin();
   mfrc522.PCD_Init();   // Init MFRC522
@@ -221,7 +223,7 @@ void loop() {
   if (WiFi.status() == WL_CONNECTED) {
 
     if (millis()-lastTime > 60000){ //refresh to against nodding
-      if (!silent) Serial.printf("Coffee at %d\n", millis());  
+      if (silent) Serial.printf("Coffee at %d\n", millis());  
       if (apiHttpsPost(apiURL, "test")){
         //Serial.printf("API successed in %d\n", usedTime); //millis() - lastTime);
         //beep();
@@ -276,7 +278,7 @@ void loop() {
       if (!silent) Serial.print(F("Card UID:"));
       //dump_byte_array(mfrc522.uid.uidByte, mfrc522.uid.size); // 顯示卡片的UID
       String uid = H8ToD10(mfrc522.uid.uidByte, mfrc522.uid.size);
-      if (!silent) Serial.println(uid);
+      if (silent) Serial.println(uid);
       //Serial.print(F("PICC type: "));
       //MFRC522::PICC_Type piccType = mfrc522.PICC_GetType(mfrc522.uid.sak);
       //Serial.println(mfrc522.PICC_GetTypeName(piccType));  //顯示卡片的類型
