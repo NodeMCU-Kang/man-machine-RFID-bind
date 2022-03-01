@@ -1,3 +1,4 @@
+#define version "1.0"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <EEPROM.h>
