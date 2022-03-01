@@ -1,4 +1,4 @@
-#define version "1.0"
+#define ver "v1.0"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <EEPROM.h>
@@ -7,7 +7,7 @@
 #include <WiFiClient.h>
 #include <WiFiClientSecureBearSSL.h>
 
-#define version "v1.0"
+
 
 #include <SPI.h>
 // MRFC522
