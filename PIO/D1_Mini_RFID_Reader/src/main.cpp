@@ -231,8 +231,10 @@ void loop() {
       if (apiHttpsPost(apiURL, "test")){
         //Serial.printf("API successed in %d\n", usedTime); //millis() - lastTime);
         //beep();
-        //digitalWrite(breathLED, LOW);         
-        digitalWrite(rfidLED, LOW);         
+        //digitalWrite(breathLED, LOW); 
+        digitalWrite(rfidLED, LOW);                
+        digitalWrite(errorLED, LOW);         
+        digitalWrite(greenLED, HIGH);         
       } else {
         Serial.printf("API failed in %d\n", millis() - lastTime);
         digitalWrite(breathLED, LOW);                
@@ -296,8 +298,9 @@ void loop() {
         unsigned int usedTime = millis() - lastTime;
         //Serial.printf("API successed in %d\n", usedTime); //millis() - lastTime);
         beep();
-        //digitalWrite(breathLED, LOW);         
         digitalWrite(rfidLED, LOW);         
+        digitalWrite(errorLED, LOW);         
+        digitalWrite(breathLED, HIGH);        
       }else {
         if (!silent) Serial.printf("API failed in %d\n", millis() - lastTime);
         digitalWrite(breathLED, LOW);                
