@@ -73,6 +73,7 @@ StaticJsonDocument<200> json_doc;
 String apiReturn; 
 
 unsigned int max_delay = 0;
+byte errorTimes = 5; // 錯誤次數
 void setup() {
 
   pinMode(redLED,   OUTPUT);    digitalWrite(redLED,   LOW);
@@ -202,10 +203,13 @@ void setup() {
     beep(); delay(200); beep(); delay(200); beep(); delay(200); beep();       
   }else {
     Serial.printf("API failed in %d\n", millis() - lastTime);             
+    digitalWrite(breathLED, LOW);                
+    digitalWrite(rfidLED, LOW);                
     digitalWrite(errorLED, HIGH); 
     errorBeep();
-    //delay(3000);        
-    digitalWrite(errorLED, LOW);          
+    if (--errorTimes == 0) {
+        resetFunc();
+    }        
   }
 
   //digitalWrite(greenLED, LOW);
@@ -229,14 +233,15 @@ void loop() {
         //beep();
         //digitalWrite(breathLED, LOW);         
         digitalWrite(rfidLED, LOW);         
-      }else {
+      } else {
         Serial.printf("API failed in %d\n", millis() - lastTime);
         digitalWrite(breathLED, LOW);                
         digitalWrite(rfidLED, LOW);                
         digitalWrite(errorLED, HIGH); 
         errorBeep();
-        //delay(3000);        
-        digitalWrite(errorLED, LOW);         
+        if (--errorTimes == 0) {
+           resetFunc();
+        }        
         lastTime = millis();
       }  
 
@@ -299,8 +304,11 @@ void loop() {
         digitalWrite(rfidLED, LOW);                
         digitalWrite(errorLED, HIGH); 
         errorBeep();
+        if (--errorTimes == 0) {
+           resetFunc();
+        }
         //delay(3000);        
-        digitalWrite(errorLED, LOW);         
+        //digitalWrite(errorLED, LOW);         
         
       }
 
