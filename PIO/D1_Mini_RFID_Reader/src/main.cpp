@@ -239,6 +239,10 @@ void loop() {
 
     if (rssi< -70) {
       digitalWrite(errorLED, HIGH);
+      digitalWrite(rfidLED, LOW);
+      digitalWrite(greenLED, LOW);
+    } else if (rssi< -65) {          
+      digitalWrite(errorLED, HIGH);
       digitalWrite(rfidLED, HIGH);
       digitalWrite(greenLED, LOW);
     } else {          
@@ -258,7 +262,8 @@ void loop() {
         digitalWrite(errorLED, LOW);         
         digitalWrite(greenLED, HIGH);         
       } else {
-        Serial.printf("API failed in %d\n", millis() - lastTime);
+        //Serial.printf("API failed in %d\n", millis() - lastTime);
+        Serial.println("");
         digitalWrite(breathLED, LOW);                
         digitalWrite(rfidLED, LOW);                
         digitalWrite(errorLED, HIGH); 
