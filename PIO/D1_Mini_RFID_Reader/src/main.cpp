@@ -7,17 +7,15 @@
 #include <WiFiClient.h>
 #include <WiFiClientSecureBearSSL.h>
 
-
-
 #include <SPI.h>
 // MRFC522
 #include <MFRC522.h>
 #define RST_PIN         D0 //D3       // Configurable, see typical pin layout above
 #define SS_PIN          D8 //D4       // Configurable, see typical pin layout above
-MFRC522 mfrc522(SS_PIN, RST_PIN);     // Create MFRC522 instance
+MFRC522 mfrc522(SS_PIN, RST_PIN);     // Create an MFRC522 instance
 
-//Buzzer has capacitance, connected to D3 or D4, will cause booting unstable.
-//So use D2 to drive buzzer 
+// Buzzer has capacitance, connected to D3 or D4, will cause booting unstable.
+// So use D2 to drive buzzer 
 #define blueLED   D4
 #define greenLED  D1
 #define redLED    D3
@@ -26,25 +24,21 @@ MFRC522 mfrc522(SS_PIN, RST_PIN);     // Create MFRC522 instance
 #define errorLED  redLED
 #define beepPin   D2
 
-// BearSSL::WiFiClientSecure httpsPostClient;
-// HTTPClient httpsPost;
-
-// BearSSL::WiFiClientSecure httpsGetClient;
-// HTTPClient httpsGet;
-
-// *** define which AP/Router to use
-#define apAPI           "https://deploy-ap-api.herokuapp.com/?getAP"
-#define heartBeatAPI    "https://ilxgxw0o3a.execute-api.ap-northeast-1.amazonaws.com/ugym/check_status"
+// define 跳板 AP SSID/PWD
 #define bridge_ssid     "abc"       // 跳板 AP SSID
 #define bridge_password "12345678"  // 跳板 AP PWD
 
-// define which API URL to use
-//#define aws_rfid_err  //for test
+// define apAP, heartAPI, fwAPI URLs
+#define apAPI           "https://deploy-ap-api.herokuapp.com/?getAP"
+#define heartBeatAPI    "https://ilxgxw0o3a.execute-api.ap-northeast-1.amazonaws.com/ugym/check_status"
+#define fwAPI           "https://nodemcu-kang.github.io/man-machine-RFID-bind/ArduinoIDE/D1_Mini_RFID_Reader/fw_version.json"
+
+// define RFID API URL to use
+//#define aws_rfid_err  // generate an api error
 #if defined(aws_rfid_err)  // for test
 const char* apiURL = "https://ilxgxw0o3a.execute-api.ap-northeast-1.amazonaws.com/";
 #else
 const char* apiURL = "https://ilxgxw0o3a.execute-api.ap-northeast-1.amazonaws.com/ugym/5/v4/machine/machine_user_login_with_rfid";
-//const char* apiURL = "https://api-for-sql.herokuapp.com/test";
 #endif
 
 String apiHttpsGet(const char* apiURL);
@@ -71,12 +65,6 @@ String apiReturn;
 unsigned int max_delay = 0;
 byte errorTimes = 5; // 錯誤次數
 void setup() {
-
-  // httpsPostClient.setInsecure(); 
-  // httpsPost.setTimeout(20000);  
-
-  // httpsGetClient.setInsecure(); 
-  // httpsGet.setTimeout(20000);  
 
   pinMode(redLED,   OUTPUT);    digitalWrite(redLED,   LOW);
   pinMode(greenLED, OUTPUT);    digitalWrite(greenLED, LOW); 
@@ -173,7 +161,7 @@ void setup() {
 
   digitalWrite(greenLED, HIGH);
   Serial.println("Get fw_version.json");
-  apiReturn = apiHttpsGet("https://nodemcu-kang.github.io/man-machine-RFID-bind/ArduinoIDE/D1_Mini_RFID_Reader/fw_version.json");
+  apiReturn = apiHttpsGet(fwAPI);
   Serial.println(apiReturn);
   apiReturn.toCharArray(json_input,100);       
   json_error = deserializeJson(json_doc, json_input);
@@ -186,29 +174,28 @@ void setup() {
     Serial.println(String(json_element));           
   }  
 
+  // Check heartbeat API
   Serial.println(heartBeatAPI);
-  apiReturn = apiHttpsGet("https://ilxgxw0o3a.execute-api.ap-northeast-1.amazonaws.com/ugym/check_status");
+  apiReturn = apiHttpsGet(heartBeatAPI);
   Serial.println(apiReturn);
 
   //第一次呼叫 apiHttpPost() 會花比較久時間，先呼叫來縮短後續的呼叫時間
-  // lastTime = millis();
-  // Serial.println(apiURL);
-  // digitalWrite(greenLED, HIGH);
-  // if (apiHttpsPost(apiURL, "test")){
-  //   Serial.printf("API successed in %d\n", millis() - lastTime);
-  //   beep(); delay(200); beep(); delay(200); beep(); delay(200); beep();       
-  // }else {
-  //   Serial.printf("API failed in %d\n", millis() - lastTime);             
-  //   digitalWrite(breathLED, LOW);                
-  //   digitalWrite(rfidLED, LOW);                
-  //   digitalWrite(errorLED, HIGH); 
-  //   //errorBeep();
-  //   if (--errorTimes == 0) {
-  //       resetFunc();
-  //   }        
-  // }
-
-  //digitalWrite(greenLED, LOW);
+  Serial.println(apiURL);
+  digitalWrite(greenLED, HIGH);
+  lastTime = millis();  
+  if (apiHttpsPost(apiURL, "test")){
+    Serial.printf("API successed in %d\n", millis() - lastTime);
+    beep(); delay(200); beep(); delay(200); beep(); delay(200); beep();       
+  }else {
+    Serial.printf("API failed in %d\n", millis() - lastTime);             
+    digitalWrite(breathLED, LOW);                
+    digitalWrite(rfidLED, LOW);                
+    digitalWrite(errorLED, HIGH); 
+    errorBeep();
+    if (--errorTimes == 0) {
+        resetFunc();
+    }        
+  }
 
   Serial.println();  
   Serial.println(F("Scan PICC to see UID, SAK, type, and data blocks..."));  
@@ -251,7 +238,7 @@ void loop() {
       Serial.printf("Coffee at %d\n", millis());  
       Serial.printf("RSSI now:%d, MAX RSSI:%d, MIN RSSI:%d \n", rssi, max_rssi, min_rssi);  
       Serial.println(heartBeatAPI);
-      apiReturn = apiHttpsGet("https://ilxgxw0o3a.execute-api.ap-northeast-1.amazonaws.com/ugym/check_status");
+      apiReturn = apiHttpsGet(heartBeatAPI);
       Serial.println(apiReturn);    
       if (apiReturn=="\"OK!\"") {
         Serial.printf("API successed in %d\n", millis() - lastTime);        
@@ -440,6 +427,7 @@ bool apiHttpsPost(const char* apiURL, String rfid_uid){
     lastTime = millis();
     int httpCode = httpsPost.POST(postBody);
     unsigned int apiTime = millis() - lastTime;
+    Serial.println(apiTime);
     if (apiTime >max_delay) max_delay = apiTime;
 
     //Serial.printf("%d, %d\n",coffee++,apiTime); // 統計用
