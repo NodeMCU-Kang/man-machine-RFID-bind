@@ -388,7 +388,9 @@ String apiHttpsGet(const char* apiURL){
 
     Serial.print("[HTTPS] GET...\n");
     // start connection and send HTTP header
+    unsigned long lastTime1=millis();
     int httpCode = httpsGet.GET();
+    //Serial.println("httpsGet:", millis()-lastTime1);
 
     Serial.println(httpCode);
     // httpCode will be negative on error
