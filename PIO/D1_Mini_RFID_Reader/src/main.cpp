@@ -233,7 +233,7 @@ void loop() {
       digitalWrite(greenLED, HIGH);
     }
 
-    if (millis()-lastTime > 6000){ //refresh to against nodding
+    if (millis()-lastTime > 60000){ //refresh to against nodding
       lastTime = millis();
       Serial.printf("Coffee at %d\n", millis());  
       Serial.printf("RSSI now:%d, MAX RSSI:%d, MIN RSSI:%d \n", rssi, max_rssi, min_rssi);  
