@@ -453,6 +453,7 @@ bool apiHttpsPost(const char* apiURL, String rfid_uid){
   }  
   return success;
 }
+
 void dump_byte_array(byte *buffer, byte bufferSize) {
   unsigned long uid=0;
   for (byte i = 0; i < bufferSize; i++) {
