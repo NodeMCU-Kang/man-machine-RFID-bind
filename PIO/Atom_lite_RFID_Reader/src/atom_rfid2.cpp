@@ -207,11 +207,13 @@ void setup() {
 }
 
 void loop() {
+  //**** simple working RFID reading
   // if (!mfrc522.PICC_IsNewCardPresent() || ! mfrc522.PICC_ReadCardSerial()) {  //如果没有读取到新的卡片
   //   delay(200);
   //   return;
   // }
   // beep(100);
+  
 
   // Serial.print("UID:");
   // for (byte i = 0; i < mfrc522.uid.size; i++) {
@@ -219,6 +221,7 @@ void loop() {
   //   Serial.print(mfrc522.uid.uidByte[i], HEX);
   // }
   // Serial.println("");
+  //******************************************************************************************  
 
   // from D1_Mini_RFID_Reader
   if (WiFi.status() == WL_CONNECTED) {
@@ -233,13 +236,13 @@ void loop() {
     //Serial.printf("RSSI now:%d, MAX RSSI:%d, MIN RSSI:%d \n", rssi, max_rssi, min_rssi);   
 
     if (rssi< -70) {
-      Serial.println("RSSI is too low");
+      //Serial.println("RSSI is too low");
       M5.dis.drawpix(0, RED); 
     } else if (rssi< -65) { 
-      Serial.println("RSSI is low");
+      //Serial.println("RSSI is low");
       M5.dis.drawpix(0, MAGENTA);         
     } else {     
-      Serial.println("RSSI is good");
+      //Serial.println("RSSI is good");
       M5.dis.drawpix(0, GREEN);     
     }
 
@@ -271,7 +274,7 @@ void loop() {
     delay(4);  
       
     // Reset the loop if no new card present on the sensor/reader. This saves the entire process when idle.
-    if ( ! mfrc522.PICC_IsNewCardPresent()) { 
+    if ( ! mfrc522.PICC_IsNewCardPresent() || ! mfrc522.PICC_ReadCardSerial()) { 
     } else {
       // Select one of the cards
       if ( ! mfrc522.PICC_ReadCardSerial()) {
