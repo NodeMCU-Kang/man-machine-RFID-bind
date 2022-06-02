@@ -1,14 +1,21 @@
-// ESP32 I2C Scanner
-// Based on code of Nick Gammon  http://www.gammon.com.au/forum/?id=10896
-// ESP32 DevKit - Arduino IDE 1.8.5
-// Device tested PCF8574 - Use pullup resistors 3K3 ohms !
-// PCF8574 Default Freq 100 KHz 
-
 #include <Arduino.h>
-
-//#include <Wire.h>
+//#include <Wire.h> //for I2C
 
 #include <M5Atom.h>
+//M5 ATOM-Lite 用的是 WS2812B 或 SK6812 這種 三合一的 全彩LED
+//但 R, G, B 的亮度差異滿多，G>>B>R
+//除了 Red, Green, Blue, White 這種純色外，其他調色要調整比重
+//例如 0xffff00 的黃色會變成綠，改用 0xff3000 卻比較有明顯橘色
+//M5.dis.drawpix(0, 0xff3000); //set LED orange 
+#define GREEN   0x00ff00
+#define RED     0xff0000
+#define BLUE    0x0000ff
+#define WHITE   0xffffff
+#define ORANGE  0xff3000
+#define MAGENTA 0xff00ff
+#define BLACK   0x000000
+#define LED_OFF 0x000000
+
 #include <ArduinoJson.h>
 #include <EEPROM.h>
 #include <WiFi.h>
@@ -17,32 +24,28 @@
 #include "MFRC522_I2C.h"
 MFRC522 mfrc522(0x28);   // Create MFRC522 instance.  创建MFRC522实例
 
-// Buzzer has capacitance, connected to D3 or D4, will cause booting unstable.
-// So use D2 to drive buzzer 
-#define blueLED   D4
-#define greenLED  D1
-#define redLED    D3
-#define breathLED greenLED
-#define rfidLED   blueLED
-#define errorLED  redLED
+//define beep pins, GPIO21 for dia.12 buzzer, GPIO25 for dia.9 buzzer 
 #define beepPin   21
 #define beepPin1  25
 
-// define 跳板 AP SSID/PWD
+//define GPIO39 for button 
+#define buttonPin 39
+
+//define 跳板 AP SSID and PWD
 #define bridge_ssid     "abc"       // 跳板 AP SSID
 #define bridge_password "12345678"  // 跳板 AP PWD
 
-// define apAP, heartAPI, fwAPI URLs
+//define apAP, heartAPI, fwAPI URLs
 #define apAPI           "https://deploy-ap-api.herokuapp.com/?getAP"
 #define heartBeatAPI    "https://ilxgxw0o3a.execute-api.ap-northeast-1.amazonaws.com/ugym/check_status"
 #define fwAPI           "https://nodemcu-kang.github.io/man-machine-RFID-bind/ArduinoIDE/D1_Mini_RFID_Reader/fw_version.json"
 
-// define RFID API URL to use
+//define RFID API URL to use
 //#define aws_rfid_err  // generate an api error
 #if defined(aws_rfid_err)  // for test
-const char* apiURL = "https://ilxgxw0o3a.execute-api.ap-northeast-1.amazonaws.com/";
+  const char* apiURL = "https://ilxgxw0o3a.execute-api.ap-northeast-1.amazonaws.com/";
 #else
-const char* apiURL = "https://ilxgxw0o3a.execute-api.ap-northeast-1.amazonaws.com/ugym/5/v4/machine/machine_user_login_with_rfid";
+  const char* apiURL = "https://ilxgxw0o3a.execute-api.ap-northeast-1.amazonaws.com/ugym/5/v4/machine/machine_user_login_with_rfid";
 #endif
 
 String apiHttpsGet(const char* apiURL);
@@ -57,7 +60,7 @@ int    checkApAPI(int timeoutTick);
 void(* resetFunc) (void) = 0; //declare reset function @ address 0
 
 unsigned long lastTime = 0;
-bool   force_ap_mode = false;
+bool   force_bridge_mode = false;
 String aSSID="";                   // 場域 AP SSID
 String aPWD="";                    // 場域 AP PWD
 
@@ -78,31 +81,28 @@ int min_rssi=0;
 void setup() {
   //M5.begin();                   //Init M5Atom.  
   M5.begin(true, false, true);    //M5.begin (LCDEnable, PowerEnable, SerialEnable)
-  delay(50);                      //delay 50ms.  
-  M5.dis.drawpix(0, 0xff0000);    //Light the LED with the specified RGB color 
- 
-  //GPIO21 for dia.12 buzzer
-  //GPIO25 for dia.9 buzzer 
-  pinMode(21, OUTPUT);
-  pinMode(25, OUTPUT);
 
   //button GPIO - pressed when boot up t0 force to use bridge AP mode
-  pinMode(39, INPUT);
-  force_ap_mode = digitalRead(39)==LOW;
+  pinMode(buttonPin, INPUT);
+  force_bridge_mode = digitalRead(39)==LOW; // when button is pressed during boot, force to use bridge AP mode
   Serial.print("Button GPIO39 pressed: ");
-  Serial.println(force_ap_mode);
+  Serial.println(force_bridge_mode); 
 
-  beep(100);
+  //Notify for booting up
+  M5.dis.drawpix(0, RED);    //Light the LED with the specified RGB color 
+  pinMode(beepPin,  OUTPUT);
+  pinMode(beepPin1, OUTPUT);
+  beep(100);  
 
-  
   //Serial.begin(115200); //Init M5Atom.  初始化M5Atom
   Serial.println("Source: MAQ D:\\WebApp Projects\\ArduinoDevices\\P02-人機綁定\\man-machine-RFID-bind\\PIO\\Atom_lite_RFID_Reader");  
+  Serial.println("Github: https://github.com/NodeMCU-Kang/man-machine-RFID-bind");  
   Serial.println();
 
   Serial.println(WiFi.macAddress());  
 
-  Serial.println("\n\nMFRC522 Init");
-  Wire.begin(26,32);  //Initialize pin 26,32.  初始化26,32引脚
+  Serial.println("\nMFRC522 Init");
+  Wire.begin(26,32);  //Initialize I2C pins 26(SDA),32(SCL). 
 
   mfrc522.PCD_Init(); // Init MFRC522. 
   //Serial.println("Please put the card");
@@ -114,9 +114,9 @@ void setup() {
 
   // if eepromFlag !=0x55, connect to the bridge AP, "abc"/"12345678"
   // set mobile phone’s hotspot as "abc"/"12345678"
-  if ((eepromFlag !=0x55) || (force_ap_mode==1)) {
+  if ((eepromFlag !=0x55) || (force_bridge_mode==1)) {
     if (eepromFlag !=0x55) Serial.print("No SSID in EEPROM, Connect to bridge_AP: ");
-    if (force_ap_mode==1)  Serial.print("User forces to Connect to bridge_AP: ");
+    if (force_bridge_mode==1)  Serial.print("User forces to Connect to bridge_AP: ");
     Serial.println(bridge_ssid); 
     
     if (checkApAPI(50)==0){
@@ -137,7 +137,7 @@ void setup() {
   Serial.printf("SSID: %s, PWD: %s\n", aSSID.c_str(), aPWD.c_str());  
 
   beep(100); delay(200); beep(100);
-  M5.dis.drawpix(0, 0x0000ff); //set LED bluw
+  M5.dis.drawpix(0, BLUE); 
 
   WiFi.mode(WIFI_STA); // 本來以為一定要執行，但好像預設就是 Station mode
 
@@ -161,7 +161,7 @@ void setup() {
   Serial.print("Connected! IP address: ");
   Serial.println(WiFi.localIP());
 
-  M5.dis.drawpix(0, 0x00ff00); //set LED green
+  M5.dis.drawpix(0, GREEN); 
 
   // Serial.println("Get fw_version.json");
   // apiReturn = apiHttpsGet(fwAPI);
@@ -202,172 +202,133 @@ void setup() {
   lastTime = millis();
   max_delay =0;  
 
+  M5.dis.drawpix(0, ORANGE);
+
 }
 
 void loop() {
-  if (!mfrc522.PICC_IsNewCardPresent() || ! mfrc522.PICC_ReadCardSerial()) {  //如果没有读取到新的卡片
-    delay(200);
-    return;
-  }
-  beep(100);
+  // if (!mfrc522.PICC_IsNewCardPresent() || ! mfrc522.PICC_ReadCardSerial()) {  //如果没有读取到新的卡片
+  //   delay(200);
+  //   return;
+  // }
+  // beep(100);
 
-  Serial.print("UID:");
-  for (byte i = 0; i < mfrc522.uid.size; i++) {
-    Serial.print(mfrc522.uid.uidByte[i] < 0x10 ? " 0" : " ");
-    Serial.print(mfrc522.uid.uidByte[i], HEX);
-  }
-  Serial.println("");
+  // Serial.print("UID:");
+  // for (byte i = 0; i < mfrc522.uid.size; i++) {
+  //   Serial.print(mfrc522.uid.uidByte[i] < 0x10 ? " 0" : " ");
+  //   Serial.print(mfrc522.uid.uidByte[i], HEX);
+  // }
+  // Serial.println("");
 
   // from D1_Mini_RFID_Reader
-  // if (WiFi.status() == WL_CONNECTED) {
+  if (WiFi.status() == WL_CONNECTED) {
 
-  //   int rssi = WiFi.RSSI();
-  //   if (rssi > max_rssi) {
-  //     max_rssi = rssi;
-  //   }
-  //   if (rssi < min_rssi) {
-  //     min_rssi = rssi;
-  //   }
-  //   //Serial.printf("RSSI now:%d, MAX RSSI:%d, MIN RSSI:%d \n", rssi, max_rssi, min_rssi);   
+    int rssi = WiFi.RSSI();
+    if (rssi > max_rssi) {
+      max_rssi = rssi;
+    }
+    if (rssi < min_rssi) {
+      min_rssi = rssi;
+    }
+    //Serial.printf("RSSI now:%d, MAX RSSI:%d, MIN RSSI:%d \n", rssi, max_rssi, min_rssi);   
 
-  //   if (rssi< -70) {
-  //     digitalWrite(errorLED, HIGH);
-  //     digitalWrite(rfidLED, LOW);
-  //     digitalWrite(greenLED, LOW);
-  //   } else if (rssi< -65) {          
-  //     digitalWrite(errorLED, HIGH);
-  //     digitalWrite(rfidLED, HIGH);
-  //     digitalWrite(greenLED, LOW);
-  //   } else {          
-  //     digitalWrite(errorLED, LOW);
-  //     digitalWrite(rfidLED, LOW);
-  //     digitalWrite(greenLED, HIGH);
-  //   }
+    if (rssi< -70) {
+      Serial.println("RSSI is too low");
+      M5.dis.drawpix(0, RED); 
+    } else if (rssi< -65) { 
+      Serial.println("RSSI is low");
+      M5.dis.drawpix(0, MAGENTA);         
+    } else {     
+      Serial.println("RSSI is good");
+      M5.dis.drawpix(0, GREEN);     
+    }
 
-  //   if (millis()-lastTime > 60000){ //refresh to against nodding
-  //     lastTime = millis();
-  //     Serial.printf("Coffee at %d\n", millis());  
-  //     Serial.printf("RSSI now:%d, MAX RSSI:%d, MIN RSSI:%d \n", rssi, max_rssi, min_rssi);  
-  //     Serial.println(heartBeatAPI);
-  //     apiReturn = apiHttpsGet(heartBeatAPI);
-  //     Serial.println(apiReturn);    
-  //     if (apiReturn=="\"OK!\"") {
-  //       Serial.printf("API successed in %d\n", millis() - lastTime);        
-  //       digitalWrite(rfidLED, LOW);                
-  //       digitalWrite(errorLED, LOW);         
-  //       digitalWrite(greenLED, HIGH);         
-  //     } else {
-  //       Serial.printf("API failed in %d\n", millis() - lastTime);
-  //       Serial.println("");
-  //       digitalWrite(breathLED, LOW);                
-  //       digitalWrite(rfidLED, LOW);                
-  //       digitalWrite(errorLED, HIGH); 
-  //       //errorBeep();
-  //       if (--errorTimes == 0) {
-  //          resetFunc();
-  //       }        
-  //       //lastTime = millis();        
-  //     }
-  //     lastTime = millis();
-
-  //     // if (apiHttpsPost(apiURL, "test")){
-  //     //   //Serial.printf("API successed in %d\n", usedTime); //millis() - lastTime);
-  //     //   //beep();
-  //     //   //digitalWrite(breathLED, LOW); 
-  //     //   digitalWrite(rfidLED, LOW);                
-  //     //   digitalWrite(errorLED, LOW);         
-  //     //   digitalWrite(greenLED, HIGH);         
-  //     // } else {
-  //     //   //Serial.printf("API failed in %d\n", millis() - lastTime);
-  //     //   Serial.println("");
-  //     //   digitalWrite(breathLED, LOW);                
-  //     //   digitalWrite(rfidLED, LOW);                
-  //     //   digitalWrite(errorLED, HIGH); 
-  //     //   errorBeep();
-  //     //   if (--errorTimes == 0) {
-  //     //      resetFunc();
-  //     //   }        
-  //     //   lastTime = millis();
-  //     // }  
-
-  //   }  
-
-  //   // *** 呼吸燈   
-  //   // i++;
-  //   // if (i%10==0){
-  //   //   digitalWrite(breathLED, HIGH);    
-  //   // } else {
-  //   //   digitalWrite(breathLED, LOW);
-  //   // }  
-  //   // ****************************  
-    
-  //   // re-init for cheap RFID cards
-  //   mfrc522.PCD_Init();
-  //   delay(4);  
+    if (millis()-lastTime > 60000){ //refresh to against nodding
+      lastTime = millis();
+      Serial.printf("Coffee at %d\n", millis());  
+      Serial.printf("RSSI now:%d, MAX RSSI:%d, MIN RSSI:%d \n", rssi, max_rssi, min_rssi);  
+      Serial.println(heartBeatAPI);
+      apiReturn = apiHttpsGet(heartBeatAPI);
+      Serial.println(apiReturn);    
+      if (apiReturn=="\"OK!\"") {
+        Serial.printf("API successed in %d\n", millis() - lastTime); 
+        M5.dis.drawpix(0, GREEN);                
+      } else {
+        Serial.printf("API failed in %d\n", millis() - lastTime);
+        Serial.println("");
+        M5.dis.drawpix(0, RED);
+        //errorBeep();
+        if (--errorTimes == 0) {
+           resetFunc();
+        }        
+        //lastTime = millis();        
+      }
+      lastTime = millis();
+    }  
+       
+    // re-init for cheap RFID cards
+    mfrc522.PCD_Init();
+    delay(4);  
       
-  //   // Reset the loop if no new card present on the sensor/reader. This saves the entire process when idle.
-  //   if ( ! mfrc522.PICC_IsNewCardPresent()) { 
-  //   } else {
-  //     // Select one of the cards
-  //     if ( ! mfrc522.PICC_ReadCardSerial()) {
-  //       // Read A0
-  //       // Serial.println(analogRead(A0));   
-  //       return;
-  //     }
+    // Reset the loop if no new card present on the sensor/reader. This saves the entire process when idle.
+    if ( ! mfrc522.PICC_IsNewCardPresent()) { 
+    } else {
+      // Select one of the cards
+      if ( ! mfrc522.PICC_ReadCardSerial()) {
+        // Read A0
+        // Serial.println(analogRead(A0));   
+        return;
+      }
 
-  //     //digitalWrite(breathLED, LOW); 
-  //     digitalWrite(rfidLED, HIGH); 
+      //digitalWrite(breathLED, LOW); 
+      M5.dis.drawpix(0, BLUE); 
 
       
-  //     beep(); // short beep to acknowdge RFID card is read
+      beep(100); // short beep to acknowdge RFID card is read
       
-  //     // Dump debug info about the card; PICC_HaltA() is automatically called
-  //     //mfrc522.PICC_DumpToSerial(&(mfrc522.uid)); 
+      // Dump debug info about the card; PICC_HaltA() is automatically called
+      //mfrc522.PICC_DumpToSerial(&(mfrc522.uid)); 
   
-  //     // 顯示卡片內容
-  //     //Serial.print(F("Card UID:"));
-  //     //dump_byte_array(mfrc522.uid.uidByte, mfrc522.uid.size); // 顯示卡片的UID
-  //     String uid = H8ToD10(mfrc522.uid.uidByte, mfrc522.uid.size);
-  //     //Serial.println(uid);
-  //     //Serial.print(F("PICC type: "));
-  //     //MFRC522::PICC_Type piccType = mfrc522.PICC_GetType(mfrc522.uid.sak);
-  //     //Serial.println(mfrc522.PICC_GetTypeName(piccType));  //顯示卡片的類型
+      // 顯示卡片內容
+      //Serial.print(F("Card UID:"));
+      //dump_byte_array(mfrc522.uid.uidByte, mfrc522.uid.size); // 顯示卡片的UID
+      String uid = H8ToD10(mfrc522.uid.uidByte, mfrc522.uid.size);
+      //Serial.println(uid);
+      //Serial.print(F("PICC type: "));
+      //MFRC522::PICC_Type piccType = mfrc522.PICC_GetType(mfrc522.uid.sak);
+      //Serial.println(mfrc522.PICC_GetTypeName(piccType));  //顯示卡片的類型
   
-  //     mfrc522.PICC_HaltA();  // 卡片進入停止模式，以接受下一張卡片       
+      mfrc522.PICC_HaltA();  // 卡片進入停止模式，以接受下一張卡片       
 
-  //     //Serial.println(apiURL);
-  //     lastTime = millis();
-  //     if (apiHttpsPost(apiURL, uid)){
-  //       Serial.printf("API successed in %d\n", millis() - lastTime);
-  //       beep();
-  //       digitalWrite(rfidLED, LOW);         
-  //       digitalWrite(errorLED, LOW);         
-  //       digitalWrite(breathLED, HIGH);        
-  //     }else {
-  //       Serial.printf("API failed in %d\n", millis() - lastTime);
-  //       digitalWrite(breathLED, LOW);                
-  //       digitalWrite(rfidLED, LOW);                
-  //       digitalWrite(errorLED, HIGH); 
-  //       //errorBeep();
-  //       if (--errorTimes == 0) {
-  //          resetFunc();
-  //       }
-  //       //delay(3000);        
-  //       //digitalWrite(errorLED, LOW);         
+      //Serial.println(apiURL);
+      lastTime = millis();
+      if (apiHttpsPost(apiURL, uid)){
+        Serial.printf("API successed in %d\n", millis() - lastTime);
+        beep(100);
+        M5.dis.drawpix(0, GREEN);       
+      }else {
+        Serial.printf("API failed in %d\n", millis() - lastTime);
+        M5.dis.drawpix(0, RED); 
+        //errorBeep();
+        if (--errorTimes == 0) {
+           resetFunc();
+        }
+        //delay(3000);        
+        //digitalWrite(errorLED, LOW);         
         
-  //     }
+      }
 
-  //     //Serial.println();
-  //     //Serial.println(F("Scan PICC to see UID, SAK, type, and data blocks..."));      
-  //     //delay(500);
-  //     lastTime = millis();
-  //   }
+      //Serial.println();
+      //Serial.println(F("Scan PICC to see UID, SAK, type, and data blocks..."));      
+      //delay(500);
+      lastTime = millis();
+    }
 
-  // } else {
-  //   Serial.println("Networked is not connected");
-  //   digitalWrite(greenLED, LOW);
-  //   //delay(1000);
-  // }   
+  } else {
+    Serial.println("Networked is not connected");
+    M5.dis.drawpix(0, GREEN);
+    //delay(1000);
+  }   
 }
 
 
@@ -489,13 +450,13 @@ String H8ToD10(byte *buffer, byte bufferSize) {
 }
 
 void beep(int beep_time){ 
-  digitalWrite(21, HIGH);
-  digitalWrite(25, HIGH);
+  digitalWrite(beepPin, HIGH);
+  digitalWrite(beepPin1, HIGH);
 
   delay(beep_time);
 
-  digitalWrite(21, LOW);
-  digitalWrite(25, LOW);
+  digitalWrite(beepPin, LOW);
+  digitalWrite(beepPin1, LOW);
 
 }
 void beeep(){
