@@ -3,7 +3,7 @@
         <page name="main" id="0" />
     </pages>
     <images>
-        <image id="0" url="d:\webapp projects\arduinodevices\p02-人機綁定\man-machine-rfid-bind\rfid-qr-atom\visualtft\qr-bind-rfid\images\main.png" effect_width="800" effect_height="480" />
+        <image id="0" url="d:\webapp projects\arduinodevices\p02-rfid_bind\man-machine-rfid-bind\rfid-qr-atom\visualtft\qr-bind-rfid\images\main.png" effect_width="800" effect_height="480" />
     </images>
     <waves />
 </Resource>

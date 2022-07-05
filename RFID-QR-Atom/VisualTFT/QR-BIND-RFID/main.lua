@@ -17,6 +17,8 @@ end
 function on_press(state,x,y)
   print("screen touched")
   set_backlight(100)
+  print("Start timer")	
+  start_timer(0, 30000, 0, 1)
 end
 
 --??面需要切??，?行此回?函?，screen?目??面。
@@ -27,7 +29,7 @@ end
 --{"rfid":"rfid_num","id1":"group_id","id2":"site_id"}
 function on_control_notify(screen,control,value)
 	--print("Hi")
-    set_backlight(100)	
+    --set_backlight(100)	
     if screen == 0 
     then
 		make_qr()	
