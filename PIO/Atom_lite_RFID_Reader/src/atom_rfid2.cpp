@@ -1,13 +1,15 @@
 #include <Arduino.h>
-//#include <Wire.h> //for I2C
+#include <Wire.h> //for I2C
+
+#include "driver/adc.h"
 
 #include <M5Atom.h>
 //M5 ATOM-Lite 用的是 WS2812B 或 SK6812 這種 三合一的 全彩LED
 //但 R, G, B 的亮度差異滿多，G>>B>R
 //除了 Red, Green, Blue, White 這種純色外，其他調色要調整比重
-//例如 0xffff00 的黃色會變成綠，改用 0xff3000 卻比較有明顯橘色
+//例如 0xffff00 的黃色會變成亮綠，改用 0xff3000 卻比較有明顯橘色
 //M5.dis.drawpix(0, 0xff3000); //set LED orange 
-#define GREEN   0x00ff00
+#define GREEN   0x001100 //調低來省電
 #define RED     0xff0000
 #define BLUE    0x0000ff
 #define WHITE   0xffffff
@@ -79,13 +81,18 @@ int max_rssi=-100;
 int min_rssi=0;
 
 void setup() {
-  M5.begin(true, false, true);    //Init M5Atom. M5.begin (LCDEnable, PowerEnable, SerialEnable)
+  M5.begin(true, true, true);    // M5Atom.h 裡 void begin(bool SerialEnable = true, bool I2CEnable = true, bool DisplayEnable = false);
+                                  // 由於我們不使用 Atom-lite 預設的 25(SDA), 21(SCL) ，所以 I2CEnable 設為 false
+  Wire.begin(26,32);              // 使用 HY2.0 的 pins 作為 I2C    26(SDA), 32(SCL). Even I2CEnable is set to true, Overwrite it.                                 
+
 
   //button GPIO - pressed when boot up t0 force to use bridge AP mode
-  pinMode(buttonPin, INPUT);
+  pinMode(buttonPin, INPUT_PULLUP);
   force_bridge_mode = digitalRead(39)==LOW; // when button is pressed during boot, force to use bridge AP mode
   Serial.print("Button GPIO39 pressed: ");
   Serial.println(force_bridge_mode); 
+
+  Serial.println(getCpuFrequencyMhz());
 
   //Notify for booting up
   M5.dis.drawpix(0, RED);    //RED for start up
@@ -101,8 +108,6 @@ void setup() {
   Serial.println(WiFi.macAddress());  
 
   Serial.println("\nMFRC522 Init");
-  Wire.begin(26,32);  //Initialize I2C pins 26(SDA),32(SCL). 
-
   mfrc522.PCD_Init(); // Init MFRC522. 
 
   // Check EEPROM
@@ -154,6 +159,7 @@ void setup() {
       break;
     }
   }
+
   beep(100); delay(200); beep(100); delay(200); beep(100); //three beeps AP for connected
 
   Serial.println("");
@@ -206,7 +212,9 @@ void setup() {
 
 }
 
+
 void loop() {
+
   //**** simple working RFID reading
   // if (!mfrc522.PICC_IsNewCardPresent() || ! mfrc522.PICC_ReadCardSerial()) {  //如果没有读取到新的卡片
   //   delay(200);
@@ -225,7 +233,7 @@ void loop() {
 
   // Copy from D1_Mini_RFID_Reader
   if (WiFi.status() == WL_CONNECTED) {
-
+  
     int rssi = WiFi.RSSI();
     if (rssi > max_rssi) {
       max_rssi = rssi;
