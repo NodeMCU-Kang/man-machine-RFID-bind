@@ -1,4 +1,4 @@
-// 2022-06 Paul Kang
+// 2022-09 Paul Kang
 // 使用 串口屏 做為 QR-RFID 配對站
 // - 讀取 RFID，顯示 QR
 // - 不用 WiFi
@@ -67,12 +67,10 @@ void setup() {
   //Notify for booting up
   M5.dis.drawpix(0, RED);    //RED for start up
 
-  //button GPIO - pressed when boot up t0 force to use bridge AP mode
+  //button GPIO - pressed when boot up to register a special mode(reserved)
   pinMode(buttonPin, INPUT_PULLUP);
   special_mode = (digitalRead(39)==LOW); // when button is pressed during boot, for special mode
 
-  Serial.print("Button GPIO39 status: ");
-  Serial.println(getCpuFrequencyMhz());
   Serial.println();  
 
   // hardware serial begin parameters: 

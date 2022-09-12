@@ -4,6 +4,25 @@ function on_init()
 	make_qr()	
 end
 
+function  on_sd_inserted(dir)
+    sd_dir = dir
+	local write_byte_Tb = {0x41, 0x42, 0x43}
+    set_text(0,2,sd_dir..'/'..'1.txt')	
+	--my_write_filedata(sd_dir..'/'..'1.txt', str, add_write)	
+    local str = 'abcdef'
+	local open_state = file_open(sd_dir..'/aaa/'..'1.txt', 0x02|0x08)	
+	if (open_state == true)
+	then
+		set_text(0,3,"open ok")	
+	else
+		set_text(0,3,"open fail")		
+	end
+	write_byte_Tb[0]=0x44
+	file_write(write_byte_Tb)
+	file_close()
+	
+end
+
 --系?每隔1秒?自??用此回?函?。
 --function on_systick()
 --end
