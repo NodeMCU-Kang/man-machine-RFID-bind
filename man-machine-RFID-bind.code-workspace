@@ -1,7 +1,8 @@
 {
 	"folders": [
 		{
-			"path": "PIO/Atom_lite_RFID_Reader"
+			"name": "RFID2_test",
+			"path": "../../../M5Stack/RFID2_test"
 		}
 	],
 	"settings": {}

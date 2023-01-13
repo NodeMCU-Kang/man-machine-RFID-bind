@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <Wire.h> //for I2C
 
-#include "driver/adc.h"
+//#include "driver/adc.h"
 
 #include <M5Atom.h>
 //M5 ATOM-Lite 用的是 WS2812B 或 SK6812 這種 三合一的 全彩LED
@@ -81,7 +81,7 @@ int max_rssi=-100;
 int min_rssi=0;
 
 void setup() {
-  M5.begin(true, true, true);    // M5Atom.h 裡 void begin(bool SerialEnable = true, bool I2CEnable = true, bool DisplayEnable = false);
+  M5.begin(true, false, true);    // M5Atom.h 裡 void begin(bool SerialEnable = true, bool I2CEnable = true, bool DisplayEnable = false);
                                   // 由於我們不使用 Atom-lite 預設的 25(SDA), 21(SCL) ，所以 I2CEnable 設為 false
   Wire.begin(26,32);              // 使用 HY2.0 的 pins 作為 I2C    26(SDA), 32(SCL). Even I2CEnable is set to true, Overwrite it.                                 
 

@@ -1,7 +1,8 @@
 {
 	"folders": [
 		{
-			"path": "RFID-QR-Atom"
+			"name": "Simple6cmButtonLED",
+			"path": "../../../../test/Simple6cmButtonLED"
 		}
 	],
 	"settings": {}
