@@ -37,7 +37,7 @@ MFRC522 mfrc522(0x28); // Create MFRC522 instance.
 // define GPIO39 for button
 #define buttonPin 39
 
-// define 跳板 AP SSID and PWD
+// define bridge AP SSID and PWD
 #define bridge_ssid "abc"
 #define bridge_password "12345678"
 
@@ -97,7 +97,8 @@ void setup()
   u8g2.setFont(u8g2_font_unifont_t_chinese1);
   u8g2.setFontDirection(0);
   u8g2.clearBuffer();
-  u8g2.drawStr(0, 15, "Start ...");
+  u8g2.setCursor(0, 15);
+  u8g2.print("啟動 ..."); // u8g2.drawStr() can not display Chinese
   // u8g2.drawStr(0, 63, "Card: Place card");
   u8g2.sendBuffer();
 
@@ -128,7 +129,7 @@ void setup()
   eepromFlag = EEPROM.read(0);
 
   // if eepromFlag !=0x55, connect to the bridge AP, "abc"/"12345678"
-  // set mobile phone’s hotspot as SSID:"abc" and PWD:"12345678" for bridge AP
+  // set mobile phone's hotspot as SSID:"abc" and PWD:"12345678" for bridge AP
   if ((eepromFlag != 0x55) || (force_bridge_mode == 1))
   {
     if (eepromFlag != 0x55)
@@ -244,7 +245,8 @@ void setup()
   //   }
   // }
 
-  u8g2.drawStr(0, 63, "Card: Place card");
+  u8g2.setCursor(0, 63);
+  u8g2.print("卡號: 請感應卡片");
   u8g2.sendBuffer();
 
   Serial.println("\nMFRC522 Init...");
@@ -270,11 +272,13 @@ void loop()
     u8g2.setDrawColor(0);
     u8g2.drawBox(45, 48, 128, 16);
     u8g2.setDrawColor(1);
-    // u8g2.drawStr(0, 63, "Card:");
     u8g2.drawStr(45, 63, uid.c_str());
     u8g2.sendBuffer();
     new_rfid_detect = false;
     delay(1000);
+    u8g2.setCursor(0, 63);
+    u8g2.print("卡號: 請感應卡片");
+    u8g2.sendBuffer();
   }
   // re-init for cheap RFID cards
   Wire.begin(26, 32); // Switch I2C to MFRC522.
@@ -622,7 +626,8 @@ String readStringFromEEPROM(int addrOffset)
 int checkApAPI(int timeoutTick)
 {
   // Connect to the Bridge AP
-  u8g2.drawStr(0, 31, "Conn to AP: abc");
+  u8g2.setCursor(0, 31);
+  u8g2.print("連接 AP 中: abc");
   u8g2.sendBuffer();
 
   WiFi.mode(WIFI_STA);
@@ -642,7 +647,8 @@ int checkApAPI(int timeoutTick)
     }
   }
 
-  u8g2.drawStr(0, 47, "Conn to apPAI");
+  u8g2.setCursor(0, 47);
+  u8g2.print("連接 apAPI 中");
   u8g2.sendBuffer();
 
   Serial.println("");
